@@ -1,0 +1,23 @@
+// Dummy values
+document.getElementById("water").innerText = "Normal";
+document.getElementById("blockage").innerText = "No Blockage";
+document.getElementById("motor").innerText = "OFF";
+
+const alertList = document.getElementById("alertList");
+const simulateBtn = document.getElementById("simulateBtn");
+
+function addAlert(msg) {
+  const li = document.createElement("li");
+  li.textContent = new Date().toLocaleTimeString() + " - " + msg;
+  alertList.appendChild(li);
+}
+
+addAlert("System Initialized");
+
+simulateBtn.addEventListener("click", () => {
+  document.getElementById("water").innerText = "High";
+  document.getElementById("blockage").innerText = "Detected";
+  document.getElementById("motor").innerText = "ON";
+
+  addAlert("Blockage detected! Motor activated.");
+});
