@@ -3,8 +3,6 @@
 #define TRIG 5
 #define ECHO 18
 #define RAIN_PIN 34
-#define BUZZER 23
-#define RELAY 22
 
 float waterLevel;
 int rainValue;
@@ -15,8 +13,6 @@ void setup() {
   pinMode(TRIG, OUTPUT);
   pinMode(ECHO, INPUT);
   pinMode(RAIN_PIN, INPUT);
-  pinMode(BUZZER, OUTPUT);
-  pinMode(RELAY, OUTPUT);
 }
 
 void loop() {
