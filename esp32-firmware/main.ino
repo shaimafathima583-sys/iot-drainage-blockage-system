@@ -12,12 +12,14 @@ FirebaseConfig config;
 
 // Sensor pins
 #define TRIG_PIN 5
-#define ECHO_PIN 18
+#define ECHO_PIN 21
 #define MQ2_PIN 34
-#define IR_PIN 19
-#define FLOAT_PIN 21
-#define VIB_PIN 22
-#define MOTOR_PIN 23
+#define IR_PIN 23
+#define FLOAT_PIN 19
+#define VIB_PIN 4
+#define IN1 26
+#define IN1 27
+#define ENA 25
 
 //Global variables
 float waterLevelCM; //Ultra value (water level)
@@ -94,6 +96,34 @@ void readSensors(){
 
   //Float switch 
   isOverflowin = digitalRead(FLOAT_PIN);
+
+}
+
+//States the overall health of the drain state
+void classifyDrainState(){
+  if (healthScore >= 80)
+  Serial.println("Drain State healtheir");
+else if (healthScore >= 50)
+  Serial.println("Dran State Warning");
+else 
+Serial.println("Drain State critical");
+
+}
+
+//Motor control
+void controlMotor(){
+  if (healthScore < 50){
+    digitalWrite(IN1,HIGH);
+    digitalWrite(IN2,LOW);
+    digitalWrite(ENA,HIGH);
+    motorActive= true;
+  }else {
+    digitalWrite(IN1,LOW);
+    digitalWrite(IN2,LOW);
+    digitalWrite(ENA,LOW);
+    motorActive= true;
+    motorActive=false;
+  }
 
 }
 
@@ -198,32 +228,7 @@ void handleDashboardCommands() {
   }
 }
 
-//SETUP
-void setup() {
-  Serial.begin(115200);
 
-  initPins();
-  initWiFi();
-  initFirebase();
-  loadNodeMeta();
-}
-
-// LOOP
-void loop() {
-
-  readSensors();
-  computeVibrationWindow();
-  detectFaultySensors();
-  computeBlockageScore();
-  classifyDrainState();
-  controlMotor();
-  sendLiveToFirebase();
-  logEventsIfAny();
-  updateDailyStats();
-  handleDashboardCommands();
-
-  delay(5000);
-}
 
 
 
