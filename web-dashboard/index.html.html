@@ -2,22 +2,132 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IoT Drainage Monitoring Dashboard</title>
+  <title>DrainWatch Pro | IoT Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>IoT Drainage Blockage Monitoring System</h1>
-  <div class="card-container">
-    <div class="card">Water Level: <span id="water">--</span></div>
-    <div class="card">Blockage Status: <span id="blockage">--</span></div>
-    <div class="card">Motor Status: <span id="motor">--</span></div>
+
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold" href="#">DRAIN<span class="text-primary">WATCH</span> 001</a>
+    <div class="d-flex align-items-center">
+        <span class="badge bg-danger me-3" id="systemStatus">SYSTEM CRITICAL</span>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="#cards">Sensors</a></li>
+        <li class="nav-item"><a class="nav-link" href="#graphs">Analytics</a></li>
+        <li class="nav-item"><a class="nav-link" href="#motor">Actuator</a></li>
+      </ul>
+    </div>
   </div>
-  <div class="alerts">
-    <h2>Alerts</h2>
-    <ul id="alertList"></ul>
+</nav>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="h4">Real-Time Monitoring</h2>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-primary active" onclick="updateTimeframe('daily')">Daily</button>
+      <button class="btn btn-outline-primary" onclick="updateTimeframe('weekly')">Weekly</button>
+      <button class="btn btn-outline-primary" onclick="updateTimeframe('monthly')">Monthly</button>
+    </div>
   </div>
-  <button id="simulateBtn">Simulate Blockage</button>
-  <script src="script.js"></script>
+
+  <div id="cards" class="row g-3">
+    <div class="col-md-4 col-lg-2-4">
+      <div class="sensor-card">
+        <div class="label">Ultrasonic</div>
+        <div class="value" id="ultraVal">12<small>cm</small></div>
+        <div class="status-indicator status-danger"></div>
+      </div>
+    </div>
+    <div class="col-md-4 col-lg-2-4">
+      <div class="sensor-card">
+        <div class="label">Smoke/Gas</div>
+        <div class="value" id="mq2Val">340<small>ppm</small></div>
+        <div class="status-indicator status-warn"></div>
+      </div>
+    </div>
+    <div class="col-md-4 col-lg-2-4">
+      <div class="sensor-card">
+        <div class="label">IR Blockage</div>
+        <div class="value" id="irVal">5</div>
+        <div class="status-indicator status-ok"></div>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-2-4">
+      <div class="sensor-card">
+        <div class="label">Vibration</div>
+        <div class="value" id="vibVal">12.4<small>Hz</small></div>
+        <div class="status-indicator status-ok"></div>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-2-4">
+      <div class="sensor-card">
+        <div class="label">Overflow</div>
+        <div class="value text-danger" id="floatVal">YES</div>
+        <div class="status-indicator status-danger"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="graphs" class="row mt-5">
+    <div class="col-lg-8">
+        <div class="chart-container">
+            <h5 class="mb-3">Distance & Gas Trends</h5>
+            <canvas id="mainChart"></canvas>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="chart-container">
+            <h5 class="mb-3">Event Frequency</h5>
+            <canvas id="eventChart"></canvas>
+        </div>
+    </div>
+  </div>
+
+  <div id="motor" class="row mt-4 mb-5">
+    <div class="col-12">
+        <div class="control-panel">
+            <h5>Actuator Command Center</h5>
+            <div class="row align-items-center">
+                <div class="col-md-6 text-center mb-3 mb-md-0">
+                    <button class="btn btn-action" onclick="setDir('left')">REVERSE</button>
+                    <button class="btn btn-stop mx-2" onclick="setDir('stop')">STOP</button>
+                    <button class="btn btn-action" onclick="setDir('right')">FORWARD</button>
+                </div>
+                <div class="col-md-6 text-center">
+                    <div class="speed-control">
+                        <button class="btn btn-sm btn-outline-light" onclick="speedDown()">-</button>
+                        <span class="mx-3 fw-bold">Speed: <span id="speedVal" class="text-primary">50%</span></span>
+                        <button class="btn btn-sm btn-outline-light" onclick="speedUp()">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="alertModal text-dark" id="alertModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark border-danger">
+      <div class="modal-body text-center p-5">
+        <h2 class="text-danger mb-3">🚨 BLOCKAGE DETECTED</h2>
+        <p class="text-white">Ultrasonic and Float sensors confirm critical levels. Actuator automated response engaged.</p>
+        <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Acknowledge</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
