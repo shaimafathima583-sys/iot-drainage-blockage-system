@@ -10,6 +10,25 @@ FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
 
+// Sensor pins
+#define TRIG_PIN 5
+#define ECHO_PIN 18
+#define MQ2_PIN 34
+#define IR_PIN 19
+#define FLOAT_PIN 21
+#define VIB_PIN 22
+#define MOTOR_PIN 23
+
+//Global variables
+float waterLevelCM; //Ultra value (water level)
+int irWasteCount = 0; //IR waste 
+int vibCount = 0; //Abnormal vibrations
+int gasValue; // Gas values 
+bool isOverflowing = false; //Float switch checks the overflow of water
+bool motorActive = false; //Motor ON/OFF
+int healthScore = 100; //Overall health score
+
+
 void setup() 
 {
   Serial.begin(115200);
@@ -21,26 +40,62 @@ void setup()
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true)
 
+  initPins();
+  initWiFi();
+  initFirebase();
+  loadNodeMeta();
+
 }
 
 void loop() {
 Firebase.RTDB.setInt(&fbdo, "/drains/DRAIN_001/live/ultrasonic", random(10, 50));
   delay(1000);
+
+  // Read sensor values function
+  readSensors();
+  // check sesnor faults
+  detectFaultySensors();
+  //Abnormal vibration counts 
+  computeVibrationWindow();
+  //Health Score
+  computeBlockageScore();
+  //drain status
+  classifyDrainState();
+  //Control Motor
+  controlMotor();
+  //Send live data to firebase 
+  sendLiveToFirebase();
+  // Log any events
+  logEventsIfAny();
+  //Dashboard commands 
+  handleDashboardCommands();  
+
+  delay(200); //update every 2 seconds 
 }
 
-//Main Loop Functions
 
-float readUltrasonic() {
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-
-  long duration = pulseIn(ECHO_PIN, HIGH, 30000);
-  return duration * 0.034 / 2;
-}
 // Read all sensor values
+void readSensors(){
+  //Ultrasonic 
+  digitalWrite(TRIG_PIN,LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN,HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN,LOW);
+  delayMicroseconds(2);
+
+  waterLevelCM = pulseIN(ECHO_PIN,HIGH)*0.034/2;
+
+  //MQ2 Sensor
+  gasValue = analogRead(MQ2_PIN);
+
+  //IR Object detection
+  irWasteCount = digitalRead (IR_PIN);
+
+  //Float switch 
+  isOverflowin = digitalRead(FLOAT_PIN);
+
+}
 
 
 //Count vibration hits in time window
