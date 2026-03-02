@@ -3,7 +3,10 @@
 
 const char* ssid = "Nphn";
 const char* pwd = "";
-
+//drain uid
+#define DRAIN_ID "DRAIN_001"
+//firebase
+#define API_KEY " "
 #define DATABASE_URL "https://your-project.firebaseio.com/"
 
 FirebaseData fbdo;
@@ -22,31 +25,24 @@ FirebaseConfig config;
 #define ENA 25
 
 //Global variables
-float waterLevelCM; //Ultra value (water level)
+float waterLevelCM = 0; //Ultra value (water level)
 int irWasteCount = 0; //IR waste 
 int vibCount = 0; //Abnormal vibrations
-int gasValue; // Gas values 
+int gasValue = 0; // Gas values 
 bool isOverflowing = false; //Float switch checks the overflow of water
 bool motorActive = false; //Motor ON/OFF
 int healthScore = 100; //Overall health score
+unsigned long vibWindowStart = 0;
+unsigned long lastPush = 0;
 
 
 void setup() 
 {
   Serial.begin(115200);
-  WiFi.begin(ssid, pwd);
-  
-  config.api_key = API_KEY;
-  config.database_url = DATABASE_URL;
-
-  Firebase.begin(&config, &auth);
-  Firebase.reconnectWiFi(true)
-
   initPins();
   initWiFi();
   initFirebase();
   loadNodeMeta();
-
 }
 
 void loop() {
@@ -75,6 +71,39 @@ Firebase.RTDB.setInt(&fbdo, "/drains/DRAIN_001/live/ultrasonic", random(10, 50))
   delay(200); //update every 2 seconds 
 }
 
+//Functions
+void initWifi()
+{
+  WiFi.begin(ssid, pwd);
+  Serial.print("connecting to wifi");
+  while (WiFi.status() != W:_CONNECTED){
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nconnected");
+}
+oid initPin()
+{
+  pinMode(Trig, OUTPUT);
+  pinMode(Echo, INPUT);
+  pinMode(IR, INPUT);
+  pinMode(Float, INPUT);
+  pinMode(Vib, INPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(ENA, OUTPUT);
+  
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+}
+void initFirebase() {
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+  Serial.println("Firebase connected!");
+}
 
 // Read all sensor values
 void readSensors(){
