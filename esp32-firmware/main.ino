@@ -21,7 +21,7 @@ FirebaseConfig config;
 #define FLOAT_PIN 19
 #define VIB_PIN 4
 #define IN1 26
-#define IN1 27
+#define IN2 27
 #define ENA 25
 
 //Global variables
@@ -34,13 +34,19 @@ bool motorActive = false; //Motor ON/OFF
 int healthScore = 100; //Overall health score
 unsigned long vibWindowStart = 0;
 unsigned long lastPush = 0;
-
+int lastIRState = LOW;
+int dailyIRCount = 0;
+int dailyOverflowCount = 0;
+int monthlyOverflowCount = 0;
+int lastFloatState = LOW;
+int blockageScore = 0;
+String drainState = "Normal";
 
 void setup() 
 {
   Serial.begin(115200);
   initPins();
-  initWiFi();
+  initWifi();
   initFirebase();
   loadNodeMeta();
 }
@@ -76,13 +82,13 @@ void initWifi()
 {
   WiFi.begin(ssid, pwd);
   Serial.print("connecting to wifi");
-  while (WiFi.status() != W:_CONNECTED){
+  while (WiFi.status() != WL_CONNECTED){
     delay(500);
     Serial.print(".");
   }
   Serial.println("\nconnected");
 }
-oid initPin()
+void initPin()
 {
   pinMode(Trig, OUTPUT);
   pinMode(Echo, INPUT);
@@ -115,7 +121,7 @@ void readSensors(){
   digitalWrite(TRIG_PIN,LOW);
   delayMicroseconds(2);
 
-  waterLevelCM = pulseIN(ECHO_PIN,HIGH)*0.034/2;
+  waterLevelCM = pulseIn(ECHO_PIN,HIGH)*0.034/2;
 
   //MQ2 Sensor
   gasValue = analogRead(MQ2_PIN);
@@ -156,10 +162,41 @@ void controlMotor(){
 
 }
 
+// count ir hits
+void trackIRFlow() {
+
+  int currentIR = digitalRead(IR_PIN);
+
+  if (currentIR == HIGH && lastIRState == LOW) {
+    dailyIRCount++;
+    Serial.println("Waste detected");
+  }
+
+  lastIRState = currentIR;
+}
 
 //Count vibration hits in time window
 
 
+void computeVibrationWindow() {
+
+  int vibState = digitalRead(VIB_PIN);
+
+  if (vibState == HIGH) {
+    vibCountWindow++;
+    dailyVibrationCount++;
+  }
+
+  // Check if window expired
+  if (millis() - vibWindowStart >= VIB_WINDOW_MS) {
+
+    Serial.print("Vibration count in window: ");
+    Serial.println(vibCountWindow);
+
+    vibCountWindow = 0;
+    vibWindowStart = millis();
+  }
+}
 // Check if any sensor is not working
 void detectFaultySensors() {
 
@@ -198,8 +235,42 @@ void computeBlockageScore() {
   if (vibrationCount < 5) blockageScore += 30;
 }
 
-//Decide state (Normal / Partial / Severe)
+//float count
+void trackOverflowEvents() {
 
+  int currentFloat = digitalRead(FLOAT_PIN);
+
+  if (currentFloat == HIGH && lastFloatState == LOW) {
+    dailyOverflowCount++;
+    monthlyOverflowCount++;
+    Serial.println("Overflow event logged");
+  }
+
+  lastFloatState = currentFloat;
+}
+//Decide state (Normal / Partial / Severe)
+void computeBlockageScore() {
+
+  blockageScore = 0;
+
+  // Water level severity
+  if (waterLevelCM < 10)
+    blockageScore += 40;
+  else if (waterLevelCM < 20)
+    blockageScore += 20;
+
+  // IR no flow = blockage
+  if (digitalRead(IR_PIN) == HIGH)
+    blockageScore += 20;
+
+  // High vibration activity
+  if (vibCountWindow > 15)
+    blockageScore += 20;
+
+  // Overflow
+  if (digitalRead(FLOAT_PIN) == HIGH)
+    blockageScore += 40;
+}
 
 //Turn motor ON/OFF based on condition
 
@@ -257,8 +328,20 @@ void handleDashboardCommands() {
   }
 }
 
+//clqsify drain state
 
+void classifyDrainState() {
 
+  if (blockageScore >= 70)
+    drainState = "Severe";
+  else if (blockageScore >= 40)
+    drainState = "Partial";
+  else
+    drainState = "Normal";
+
+  Serial.print("Drain State: ");
+  Serial.println(drainState);
+}
 
 
 
