@@ -68,23 +68,9 @@ void setup() {
 
   Serial.begin(115200);
 
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-  pinMode(MQ2_PIN, INPUT);
-  pinMode(IR_PIN, INPUT);
-  pinMode(FLOAT_PIN, INPUT);
-  pinMode(VIB_PIN, INPUT);
+  initPins();
+  initWiFi();
 
-  pinMode(IN1, OUTPUT);
-  pinMode(IN2, OUTPUT);
-  pinMode(ENA, OUTPUT);
-
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, LOW);
-  digitalWrite(ENA, LOW);
-
-  WiFi.begin(ssid, pwd);
-  while (WiFi.status() != WL_CONNECTED) delay(500);
 
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
@@ -112,6 +98,38 @@ void loop() {
   sendLiveData();
 
   delay(2000);
+}
+void initPins(){
+  
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(MQ2_PIN, INPUT);
+  pinMode(IR_PIN, INPUT);
+  pinMode(FLOAT_PIN, INPUT);
+  pinMode(VIB_PIN, INPUT);
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(ENA, OUTPUT);
+
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(ENA, LOW);
+}
+
+void initWiFi(){
+  // Connect to WiFi
+  Serial.print("Connecting to WiFi");
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.print("Connected IP Address: ");
+  Serial.println(WiFi.localIP());;
 }
 
 void readSensors() {
