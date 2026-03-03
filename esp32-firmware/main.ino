@@ -1,19 +1,22 @@
 #include <WiFi.h>
 #include <Firebase_ESP_Client.h>
 
+// WiFi
 const char* ssid = "Nphn";
-const char* pwd = "";
-//drain uid
+const char* pwd  = "";
+
+// Drain identity
 #define DRAIN_ID "DRAIN_001"
-//firebase
-#define API_KEY " "
-#define DATABASE_URL "https://your-project.firebaseio.com/"
+
+// Firebase
+#define API_KEY "YOUR_API_KEY"
+#define DATABASE_URL ""
 
 FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
 
-// Sensor pins
+// Pins
 #define TRIG_PIN 5
 #define ECHO_PIN 21
 #define MQ2_PIN 34
@@ -24,311 +27,178 @@ FirebaseConfig config;
 #define IN2 27
 #define ENA 25
 
-//Global variables
-float waterLevelCM = 0; //Ultra value (water level)
-int irWasteCount = 0; //IR waste 
-int vibCount = 0; //Abnormal vibrations
-int gasValue = 0; // Gas values 
-bool isOverflowing = false; //Float switch checks the overflow of water
-bool motorActive = false; //Motor ON/OFF
-int healthScore = 100; //Overall health score
-unsigned long vibWindowStart = 0;
-unsigned long lastPush = 0;
-int lastIRState = LOW;
+// Sensor values
+float waterLevelCM = 0;
+int gasValue = 0;
+int vibCountWindow = 0;
+int dailyVibrationCount = 0;
+
+// States
+int blockageScore = 0;
+int healthScore = 100;
+String drainState = "Normal";
+bool motorActive = false;
+
+// Event counters
 int dailyIRCount = 0;
 int dailyOverflowCount = 0;
 int monthlyOverflowCount = 0;
+
+// Fault flags
+bool ultrasonicFault = false;
+bool vibrationFault = false;
+bool irFault = false;
+
+// Tracking variables
+int lastIRState = LOW;
 int lastFloatState = LOW;
-int blockageScore = 0;
-String drainState = "Normal";
+unsigned long vibWindowStart = 0;
+unsigned long lastVibrationTime = 0;
+unsigned long lastDayReset = 0;
+unsigned long motorRunTimeToday = 0;
+unsigned long motorStartTime = 0;
 
-void setup() 
-{
+const unsigned long VIB_WINDOW_MS = 10000;
+const unsigned long DAY_MS = 86400000;
+
+float totalWaterLevel = 0;
+int readingCount = 0;
+
+void setup() {
+
   Serial.begin(115200);
-  initPins();
-  initWifi();
-  initFirebase();
-  loadNodeMeta();
-}
 
-void loop() {
-Firebase.RTDB.setInt(&fbdo, "/drains/DRAIN_001/live/ultrasonic", random(10, 50));
-  delay(1000);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(MQ2_PIN, INPUT);
+  pinMode(IR_PIN, INPUT);
+  pinMode(FLOAT_PIN, INPUT);
+  pinMode(VIB_PIN, INPUT);
 
-  // Read sensor values function
-  readSensors();
-  // check sesnor faults
-  detectFaultySensors();
-  //Abnormal vibration counts 
-  computeVibrationWindow();
-  //Health Score
-  computeBlockageScore();
-  //drain status
-  classifyDrainState();
-  //Control Motor
-  controlMotor();
-  //Send live data to firebase 
-  sendLiveToFirebase();
-  // Log any events
-  logEventsIfAny();
-  //Dashboard commands 
-  handleDashboardCommands();  
-
-  delay(200); //update every 2 seconds 
-}
-
-//Functions
-void initWifi()
-{
-  WiFi.begin(ssid, pwd);
-  Serial.print("connecting to wifi");
-  while (WiFi.status() != WL_CONNECTED){
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nconnected");
-}
-void initPin()
-{
-  pinMode(Trig, OUTPUT);
-  pinMode(Echo, INPUT);
-  pinMode(IR, INPUT);
-  pinMode(Float, INPUT);
-  pinMode(Vib, INPUT);
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(ENA, OUTPUT);
-  
+
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, LOW);
-}
-void initFirebase() {
+  digitalWrite(ENA, LOW);
+
+  WiFi.begin(ssid, pwd);
+  while (WiFi.status() != WL_CONNECTED) delay(500);
+
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
 
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
-  Serial.println("Firebase connected!");
+
+  vibWindowStart = millis();
+  lastDayReset = millis();
 }
 
-// Read all sensor values
-void readSensors(){
-  //Ultrasonic 
-  digitalWrite(TRIG_PIN,LOW);
+void loop() {
+
+  readSensors();
+  trackIR();
+  trackOverflow();
+  computeVibrationWindow();
+  detectFaults();
+  computeBlockageScore();
+  classifyDrainState();
+  controlMotor();
+  updateDailyAnalytics();
+  handleDashboardCommands();
+  logEvents();
+  sendLiveData();
+
+  delay(2000);
+}
+
+void readSensors() {
+
+  digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
-  digitalWrite(TRIG_PIN,HIGH);
+  digitalWrite(TRIG_PIN, HIGH);
   delayMicroseconds(10);
-  digitalWrite(TRIG_PIN,LOW);
-  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, LOW);
 
-  waterLevelCM = pulseIn(ECHO_PIN,HIGH)*0.034/2;
+  long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  waterLevelCM = duration * 0.034 / 2;
 
-  //MQ2 Sensor
   gasValue = analogRead(MQ2_PIN);
 
-  //IR Object detection
-  irWasteCount = digitalRead (IR_PIN);
-
-  //Float switch 
-  isOverflowin = digitalRead(FLOAT_PIN);
-
+  totalWaterLevel += waterLevelCM;
+  readingCount++;
 }
 
-//States the overall health of the drain state
-void classifyDrainState(){
-  if (healthScore >= 80)
-  Serial.println("Drain State healtheir");
-else if (healthScore >= 50)
-  Serial.println("Dran State Warning");
-else 
-Serial.println("Drain State critical");
-
-}
-
-//Motor control
-void controlMotor(){
-  if (healthScore < 50){
-    digitalWrite(IN1,HIGH);
-    digitalWrite(IN2,LOW);
-    digitalWrite(ENA,HIGH);
-    motorActive= true;
-  }else {
-    digitalWrite(IN1,LOW);
-    digitalWrite(IN2,LOW);
-    digitalWrite(ENA,LOW);
-    motorActive= true;
-    motorActive=false;
-  }
-
-}
-
-// count ir hits
-void trackIRFlow() {
+void trackIR() {
 
   int currentIR = digitalRead(IR_PIN);
 
-  if (currentIR == HIGH && lastIRState == LOW) {
+  if (currentIR == HIGH && lastIRState == LOW)
     dailyIRCount++;
-    Serial.println("Waste detected");
-  }
 
   lastIRState = currentIR;
 }
 
-//Count vibration hits in time window
-
-
-void computeVibrationWindow() {
-
-  int vibState = digitalRead(VIB_PIN);
-
-  if (vibState == HIGH) {
-    vibCountWindow++;
-    dailyVibrationCount++;
-  }
-
-  // Check if window expired
-  if (millis() - vibWindowStart >= VIB_WINDOW_MS) {
-
-    Serial.print("Vibration count in window: ");
-    Serial.println(vibCountWindow);
-
-    vibCountWindow = 0;
-    vibWindowStart = millis();
-  }
-}
-// Check if any sensor is not working
-void detectFaultySensors() {
-
-  ultrasonicFault = (waterLevel <= 0 || waterLevel > 400);
-
-  if (vibrationCount == 0) {
-    if (millis() - lastVibrationTime > 60000)
-      vibrationFault = true;
-  } else {
-    vibrationFault = false;
-    lastVibrationTime = millis();
-  }
-
-  static int stableCount = 0;
-  static int lastIR = -1;
-
-  if (irValue == lastIR)
-    stableCount++;
-  else
-    stableCount = 0;
-
-  irFault = (stableCount > 50);
-  lastIR = irValue;
-
-  Firebase.RTDB.setBool(&fbdo, "/" + drainID + "/faults/ultrasonic", ultrasonicFault);
-  Firebase.RTDB.setBool(&fbdo, "/" + drainID + "/faults/vibration", vibrationFault);
-  Firebase.RTDB.setBool(&fbdo, "/" + drainID + "/faults/ir", irFault);
-}
-
-//Calculate blockage severity score
-void computeBlockageScore() {
-  blockageScore = 0;
-
-  if (waterLevel < 10) blockageScore += 40;
-  if (irValue == HIGH) blockageScore += 30;
-  if (vibrationCount < 5) blockageScore += 30;
-}
-
-//float count
-void trackOverflowEvents() {
+void trackOverflow() {
 
   int currentFloat = digitalRead(FLOAT_PIN);
 
   if (currentFloat == HIGH && lastFloatState == LOW) {
     dailyOverflowCount++;
     monthlyOverflowCount++;
-    Serial.println("Overflow event logged");
   }
 
   lastFloatState = currentFloat;
 }
-//Decide state (Normal / Partial / Severe)
+
+void computeVibrationWindow() {
+
+  if (digitalRead(VIB_PIN) == HIGH) {
+    vibCountWindow++;
+    dailyVibrationCount++;
+    lastVibrationTime = millis();
+  }
+
+  if (millis() - vibWindowStart >= VIB_WINDOW_MS) {
+    vibCountWindow = 0;
+    vibWindowStart = millis();
+  }
+}
+
+void detectFaults() {
+
+  ultrasonicFault = (waterLevelCM <= 0 || waterLevelCM > 400);
+
+  vibrationFault = (millis() - lastVibrationTime > 60000);
+
+  static int stableIR = 0;
+  static int lastIR = -1;
+  int currentIR = digitalRead(IR_PIN);
+
+  if (currentIR == lastIR)
+    stableIR++;
+  else
+    stableIR = 0;
+
+  irFault = (stableIR > 50);
+  lastIR = currentIR;
+}
+
 void computeBlockageScore() {
 
   blockageScore = 0;
 
-  // Water level severity
-  if (waterLevelCM < 10)
-    blockageScore += 40;
-  else if (waterLevelCM < 20)
-    blockageScore += 20;
+  if (waterLevelCM < 10) blockageScore += 40;
+  if (gasValue > 2000) blockageScore += 20;
+  if (vibCountWindow > 15) blockageScore += 20;
+  if (digitalRead(FLOAT_PIN) == HIGH) blockageScore += 40;
 
-  // IR no flow = blockage
-  if (digitalRead(IR_PIN) == HIGH)
-    blockageScore += 20;
+  if (blockageScore > 100) blockageScore = 100;
 
-  // High vibration activity
-  if (vibCountWindow > 15)
-    blockageScore += 20;
-
-  // Overflow
-  if (digitalRead(FLOAT_PIN) == HIGH)
-    blockageScore += 40;
+  healthScore = 100 - blockageScore;
 }
-
-//Turn motor ON/OFF based on condition
-
-
-//Send live data to Firebase
-void sendLiveToFirebase() {
-
-  Firebase.RTDB.setFloat(&fbdo, "/" + drainID + "/live/waterLevel", waterLevel);
-  Firebase.RTDB.setInt(&fbdo, "/" + drainID + "/live/vibrationCount", vibrationCount);
-  Firebase.RTDB.setInt(&fbdo, "/" + drainID + "/live/blockageScore", blockageScore);
-  Firebase.RTDB.setString(&fbdo, "/" + drainID + "/live/state", drainState);
-}
-
-//Save events (overflow, blockage, gas alert)
-void logEventsIfAny() {
-
-  if (drainState == "Severe") {
-    Firebase.RTDB.setString(&fbdo, "/" + drainID + "/events/latest", "Severe Blockage Detected");
-  }
-}
-
-// Update daily analytics data
-void updateDailyStats() {
-
-  totalWaterLevel += waterLevel;
-  readingCount++;
-
-  float avgLevel = totalWaterLevel / readingCount;
-
-  Firebase.RTDB.setInt(&fbdo, "/" + drainID + "/daily/totalBlockages", totalBlockagesToday);
-  Firebase.RTDB.setInt(&fbdo, "/" + drainID + "/daily/severeBlockages", severeBlockagesToday);
-  Firebase.RTDB.setFloat(&fbdo, "/" + drainID + "/daily/avgWaterLevel", avgLevel);
-  Firebase.RTDB.setFloat(&fbdo, "/" + drainID + "/daily/motorRunTime_sec", motorRunTimeToday / 1000);
-
-  if (millis() - lastDayReset > 86400000) {
-    totalBlockagesToday = 0;
-    severeBlockagesToday = 0;
-    motorRunTimeToday = 0;
-    totalWaterLevel = 0;
-    readingCount = 0;
-    lastDayReset = millis();
-  }
-}
-
-//Receive control commands from dashboard
-void handleDashboardCommands() {
-  if (Firebase.RTDB.getString(&fbdo, "/" + drainID + "/commands/motor")) {
-
-    String cmd = fbdo.stringData();
-
-    if (cmd == "ON")
-      digitalWrite(MOTOR_PIN, HIGH);
-    else if (cmd == "OFF")
-      digitalWrite(MOTOR_PIN, LOW);
-  }
-}
-
-//clqsify drain state
 
 void classifyDrainState() {
 
@@ -338,10 +208,93 @@ void classifyDrainState() {
     drainState = "Partial";
   else
     drainState = "Normal";
-
-  Serial.print("Drain State: ");
-  Serial.println(drainState);
 }
 
+void controlMotor() {
 
+  if (drainState == "Severe") {
 
+    if (!motorActive)
+      motorStartTime = millis();
+
+    digitalWrite(IN1, HIGH);
+    digitalWrite(IN2, LOW);
+    digitalWrite(ENA, HIGH);
+    motorActive = true;
+
+  } else {
+
+    if (motorActive)
+      motorRunTimeToday += millis() - motorStartTime;
+
+    digitalWrite(ENA, LOW);
+    motorActive = false;
+  }
+}
+
+void updateDailyAnalytics() {
+
+  if (millis() - lastDayReset >= DAY_MS) {
+
+    dailyIRCount = 0;
+    dailyOverflowCount = 0;
+    dailyVibrationCount = 0;
+    motorRunTimeToday = 0;
+    totalWaterLevel = 0;
+    readingCount = 0;
+
+    lastDayReset = millis();
+  }
+}
+
+void handleDashboardCommands() {
+
+  String path = "/drains/" + String(DRAIN_ID) + "/commands/motor";
+
+  if (Firebase.RTDB.getString(&fbdo, path)) {
+
+    String cmd = fbdo.stringData();
+
+    if (cmd == "ON") {
+      digitalWrite(ENA, HIGH);
+      motorActive = true;
+    }
+
+    if (cmd == "OFF") {
+      digitalWrite(ENA, LOW);
+      motorActive = false;
+    }
+  }
+}
+
+void logEvents() {
+
+  if (drainState == "Severe") {
+
+    String path = "/drains/" + String(DRAIN_ID) + "/events/latest";
+    Firebase.RTDB.setString(&fbdo, path, "Severe blockage detected");
+  }
+}
+
+void sendLiveData() {
+
+  String base = "/drains/" + String(DRAIN_ID) + "/";
+
+  Firebase.RTDB.setFloat(&fbdo, base + "live/waterLevel", waterLevelCM);
+  Firebase.RTDB.setInt(&fbdo, base + "live/gasValue", gasValue);
+  Firebase.RTDB.setInt(&fbdo, base + "live/blockageScore", blockageScore);
+  Firebase.RTDB.setInt(&fbdo, base + "live/healthScore", healthScore);
+  Firebase.RTDB.setString(&fbdo, base + "live/state", drainState);
+  Firebase.RTDB.setBool(&fbdo, base + "live/motorActive", motorActive);
+  Firebase.RTDB.setInt(&fbdo, base + "live/rssi", WiFi.RSSI());
+
+  Firebase.RTDB.setBool(&fbdo, base + "faults/ultrasonic", ultrasonicFault);
+  Firebase.RTDB.setBool(&fbdo, base + "faults/vibration", vibrationFault);
+  Firebase.RTDB.setBool(&fbdo, base + "faults/ir", irFault);
+
+  Firebase.RTDB.setInt(&fbdo, base + "daily/irCount", dailyIRCount);
+  Firebase.RTDB.setInt(&fbdo, base + "daily/overflowCount", dailyOverflowCount);
+  Firebase.RTDB.setInt(&fbdo, base + "daily/motorRunTime_sec", motorRunTimeToday / 1000);
+
+  Firebase.RTDB.setInt(&fbdo, base + "monthly/overflowCount", monthlyOverflowCount);
+}
