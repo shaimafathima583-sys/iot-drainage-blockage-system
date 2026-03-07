@@ -1,82 +1,149 @@
-body {
-  background: #0f172a; /* Deep Navy/Slate */
-  color: #f8fafc;
-  font-family: 'Segoe UI', Roboto, sans-serif;
+body{
+background:#0f172a;
+color:#e2e8f0;
+font-family:'Segoe UI',Roboto,sans-serif;
+margin:0;
+padding:0;
 }
 
-.navbar {
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
+
+
+.title{
+text-align:center;
+font-weight:700;
+font-size:28px;
 }
 
-/* Sensor Cards */
-.sensor-card {
-  background: linear-gradient(145deg, #1e293b, #0f172a);
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 20px;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
+.subtitle{
+text-align:center;
+color:#94a3b8;
+margin-bottom:30px;
 }
 
-.sensor-card:hover {
-  border-color: #3b82f6;
-  transform: translateY(-5px);
+
+
+/* DRAIN CARDS */
+
+.drain-card{
+background:#1e293b;
+border-radius:12px;
+padding:20px;
+text-align:center;
+box-shadow:0 6px 20px rgba(0,0,0,0.5);
+transition:0.3s;
 }
 
-.sensor-card .label {
-  color: #94a3b8;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+.drain-card:hover{
+transform:translateY(-5px);
 }
 
-.sensor-card .value {
-  font-size: 2rem;
-  font-weight: 700;
-  margin-top: 10px;
+
+
+.healthy{
+border-top:5px solid #22c55e;
 }
 
-/* Status Lights */
-.status-indicator {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.status-ok { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
-.status-warn { background: #eab308; box-shadow: 0 0 8px #eab308; }
-.status-danger { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
-
-/* Charts & Panels */
-.chart-container, .control-panel {
-  background: #1e293b;
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid #334155;
+.monitoring{
+border-top:5px solid #f59e0b;
 }
 
-/* Buttons */
-.btn-action {
-  background: #334155;
-  color: white;
-  border: 1px solid #475569;
-  padding: 10px 25px;
+.critical{
+border-top:5px solid #ef4444;
 }
 
-.btn-action:hover { background: #3b82f6; color: white; }
 
-.btn-stop {
-  background: #ef4444;
-  color: white;
-  padding: 10px 30px;
-  font-weight: bold;
+
+.status{
+display:inline-block;
+background:#334155;
+padding:5px 12px;
+border-radius:6px;
+font-size:13px;
+margin:8px 0;
 }
 
-/* Responsive Grid for 5 cards */
-@media (min-width: 992px) {
-  .col-lg-2-4 { flex: 0 0 auto; width: 20%; }
+
+
+/* SENSOR BOX */
+
+.sensor-box{
+background:#1e293b;
+border-radius:10px;
+padding:15px;
+text-align:center;
+font-size:14px;
+box-shadow:0 4px 15px rgba(0,0,0,0.4);
+transition:0.3s;
+}
+
+.sensor-box:hover{
+transform:scale(1.05);
+}
+
+.sensor-box h4{
+margin-top:5px;
+}
+
+
+
+/* SENSOR COLORS */
+
+.blue{border-bottom:4px solid #3b82f6;}
+.orange{border-bottom:4px solid #f97316;}
+.green{border-bottom:4px solid #22c55e;}
+.red{border-bottom:4px solid #ef4444;}
+.teal{border-bottom:4px solid #06b6d4;}
+
+
+
+/* CHART CONTAINER */
+
+.chart-box{
+background:#1e293b;
+border-radius:12px;
+padding:20px;
+box-shadow:0 6px 20px rgba(0,0,0,0.5);
+}
+
+
+
+/* MOTOR PANEL */
+
+.control-panel{
+background:#1e293b;
+border-radius:12px;
+padding:30px;
+box-shadow:0 6px 20px rgba(0,0,0,0.6);
+}
+
+
+
+/* BUTTONS */
+
+.btn-action{
+background:#334155;
+color:white;
+border:1px solid #475569;
+padding:10px 25px;
+}
+
+.btn-action:hover{
+background:#3b82f6;
+color:white;
+}
+
+.btn-stop{
+background:#ef4444;
+color:white;
+padding:10px 30px;
+font-weight:bold;
+}
+
+
+
+/* CHART SIZE */
+
+canvas{
+width:100% !important;
+height:300px !important;
 }
