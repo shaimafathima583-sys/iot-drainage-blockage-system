@@ -2,8 +2,8 @@
 #include <Firebase_ESP_Client.h>
 
 // WiFi
-const char* ssid = "Nphn";
-const char* pwd  = "Twinkle12259";
+const char* ssid = "Redmi 14C";
+const char* pwd  = "12345678";
 
 // Drain identity
 #define DRAIN_ID "DRAIN_001"
@@ -12,8 +12,7 @@ const char* pwd  = "Twinkle12259";
 #define API_KEY "AIzaSyCeEBw9_xuIz0D7XyMIK06rkmATL-wmIm4"
 #define DATABASE_URL "https://drainwatch-caca8-default-rtdb.asia-southeast1.firebasedatabase.app/"
 #define USER_EMAIL "nabseee15f@gmail.com"
-#define USER_PWD "asdfghjkl123"
-
+#define USER_PWD ""  // leave blank if needed
 
 FirebaseData fbdo;
 FirebaseAuth auth;
@@ -45,7 +44,6 @@ bool motorActive = false;
 // Event counters
 int dailyIRCount = 0;
 int dailyOverflowCount = 0;
-int monthlyOverflowCount = 0;
 
 // Fault flags
 bool ultrasonicFault = false;
@@ -64,25 +62,36 @@ unsigned long motorStartTime = 0;
 const unsigned long VIB_WINDOW_MS = 10000;
 const unsigned long DAY_MS = 86400000;
 
-unsigned long lastMonthReset = 0;
-const unsigned long MONTH_MS = 30UL * DAY_MS; // approx 30 days
+// Weekly counters
+int weeklyIRCount = 0;
+int weeklyOverflowCount = 0;
+float weeklyWaterTotal = 0;
+float weeklyGasTotal = 0;
+int weeklyReadingCount = 0;
 
+// Monthly counters
+int monthlyIRCount = 0;
+int monthlyOverflowCount = 0;
+float monthlyWaterTotal = 0;
+float monthlyGasTotal = 0;
+int monthlyReadingCount = 0;
 
-//Timer 
-unsigned long sendDataPrevMillis=0;
+// Timer
+unsigned long sendDataPrevMillis = 0;
 
 float totalWaterLevel = 0;
 int readingCount = 0;
 
-void setup() {
+// Prediction
+String predictedRisk = "LOW";
 
+void setup() {
   Serial.begin(115200);
 
   initPins();
   initWiFi();
 
-
-  // ===== FIREBASE CONFIG =====
+  // Firebase config
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
 
@@ -91,45 +100,50 @@ void setup() {
 
   Firebase.reconnectNetwork(true);
   fbdo.setResponseSize(2048);
-
   Firebase.begin(&config, &auth);
   Firebase.setDoubleDigits(5);
-
   config.timeout.serverResponse = 10 * 1000;
-
 }
 
 void loop() {
-
   if (Firebase.ready() &&
       (millis() - sendDataPrevMillis > 2000 || sendDataPrevMillis == 0)) {
 
     sendDataPrevMillis = millis();
 
-  readSensors();
-  trackIR();
-  trackOverflow();
-  computeVibrationWindow();
-  detectFaults();
-  computeBlockageScore();
-  classifyDrainState();
-  controlMotor();
-  updateDailyAnalytics();
-  updateMonthlyAnalytics();
-  handleDashboardCommands();
-  logEvents();
-  sendLiveData();
+    readSensors();
 
-  delay(2000);
-      }
+    trackTrash();
+    trackOverflow();
+    trackVibration();
+
+    detectFaults();
+
+    computeBlockageScore();
+    classifyDrainState();
+
+    predictBlockageRisk();
+
+    controlMotor();
+
+    updateDailyAnalytics();
+
+    storeHistory();
+
+    handleDashboardCommands();
+    logEvents();
+    sendLiveData();
+
+    delay(2000);
+  }
 }
-void initPins(){
-  
+
+void initPins() {
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   pinMode(MQ2_PIN, INPUT);
   pinMode(IR_PIN, INPUT);
-  pinMode(FLOAT_PIN, INPUT_PULLUP);
+  pinMode(FLOAT_PIN, INPUT_PULLUP); // Pull-up fixed
   pinMode(VIB_PIN, INPUT);
 
   pinMode(IN1, OUTPUT);
@@ -141,8 +155,7 @@ void initPins(){
   digitalWrite(ENA, LOW);
 }
 
-void initWiFi(){
-  // Connect to WiFi
+void initWiFi() {
   Serial.print("Connecting to WiFi");
   WiFi.begin(ssid, pwd);
 
@@ -153,11 +166,10 @@ void initWiFi(){
 
   Serial.println();
   Serial.print("Connected IP Address: ");
-  Serial.println(WiFi.localIP()); // IP address allows the system to send data to Firebase.
+  Serial.println(WiFi.localIP());
 }
 
 void readSensors() {
-
   digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
   digitalWrite(TRIG_PIN, HIGH);
@@ -170,34 +182,27 @@ void readSensors() {
   gasValue = analogRead(MQ2_PIN);
 
   totalWaterLevel += waterLevelCM;
-  readingCount++; //All read sensors should be here readings, store it to a variable
+  readingCount++;
 }
 
-void trackIR() {
- // how many objects passes through
-  int currentIR = digitalRead(IR_PIN); //stores the current reading to currentIR
-
+void trackTrash() {
+  int currentIR = digitalRead(IR_PIN);
   if (currentIR == HIGH && lastIRState == LOW)
     dailyIRCount++;
-
   lastIRState = currentIR;
 }
 
 void trackOverflow() {
-
-  int currentFloat = digitalRead(FLOAT_PIN); //input pulldown missing 
-
+  int currentFloat = digitalRead(FLOAT_PIN);
   if (currentFloat == HIGH && lastFloatState == LOW) {
     dailyOverflowCount++;
     monthlyOverflowCount++;
   }
-
   lastFloatState = currentFloat;
 }
 
-void computeVibrationWindow() {
-
-  if (digitalRead(VIB_PIN) == HIGH) { //simplyfy this logic
+void trackVibration() {
+  if (digitalRead(VIB_PIN) == HIGH) {
     vibCountWindow++;
     dailyVibrationCount++;
     lastVibrationTime = millis();
@@ -210,13 +215,8 @@ void computeVibrationWindow() {
 }
 
 void detectFaults() {
-
   ultrasonicFault = (waterLevelCM <= 0 || waterLevelCM > 400);
 
-  vibrationFault = (millis() - lastVibrationTime > 60000); //current time - last vibration detected
-
-  //The vibration sensor has not detected any vibration for 1 minute, so it might be not working.
-  //static means the value is remembered between loops.
   static int stableIR = 0;
   static int lastIR = -1;
   int currentIR = digitalRead(IR_PIN);
@@ -227,28 +227,28 @@ void detectFaults() {
     stableIR = 0;
 
   irFault = (stableIR > 50);
-  lastIR = currentIR; //simplify
+  lastIR = currentIR;
+
+  // Vibration fault
+  if (millis() - lastVibrationTime > 60000)
+    vibrationFault = true;
+  else
+    vibrationFault = false;
 }
 
 void computeBlockageScore() {
-
-  //The blockage score is used to combine multiple sensor readings into one simple number that represents how blocked the drain is.
-  //Instead of checking many sensors separately, the system calculates one value (0–100) to describe the drain condition.
-
   blockageScore = 0;
 
-  if (waterLevelCM < 10) blockageScore += 40; //change the level cm
+  if (waterLevelCM < 10) blockageScore += 40;
   if (gasValue > 2000) blockageScore += 20;
   if (vibCountWindow > 15) blockageScore += 20;
   if (digitalRead(FLOAT_PIN) == HIGH) blockageScore += 40;
 
   if (blockageScore > 100) blockageScore = 100;
-
   healthScore = 100 - blockageScore;
 }
 
 void classifyDrainState() {
-
   if (blockageScore >= 70)
     drainState = "Severe";
   else if (blockageScore >= 40)
@@ -258,11 +258,7 @@ void classifyDrainState() {
 }
 
 void controlMotor() {
-
-  //manual motor control
-
   if (drainState == "Severe") {
-
     if (!motorActive)
       motorStartTime = millis();
 
@@ -272,7 +268,6 @@ void controlMotor() {
     motorActive = true;
 
   } else {
-
     if (motorActive)
       motorRunTimeToday += millis() - motorStartTime;
 
@@ -282,22 +277,22 @@ void controlMotor() {
 }
 
 void updateDailyAnalytics() {
-
-  //To keep daily data accurate by clearing yesterday’s counts and starting a new day.
-
   if (millis() - lastDayReset >= DAY_MS) {
+    // Accumulate weekly stats
+    weeklyIRCount += dailyIRCount;
+    weeklyOverflowCount += dailyOverflowCount;
+    weeklyWaterTotal += totalWaterLevel;
+    weeklyGasTotal += gasValue;
+    weeklyReadingCount += readingCount;
 
-    //millis() → time since ESP32 started
-    //lastDayReset → time when we last reset the counts
-    //DAY_MS = 86400000 → 24 hours in milliseconds
+    // Accumulate monthly stats
+    monthlyIRCount += dailyIRCount;
+    monthlyOverflowCount += dailyOverflowCount;
+    monthlyWaterTotal += totalWaterLevel;
+    monthlyGasTotal += gasValue;
+    monthlyReadingCount += readingCount;
 
-    // Get today’s date as string (or use a real RTC module for exact date)
-    String today = "2026-03-07"; // replace with RTC date dynamically if you have one
-
-    // Save yesterday’s daily overflow count to Firebase
-    String path = "/drains/" + String(DRAIN_ID) + "/dailyOverflow/" + today;
-    Firebase.RTDB.setInt(&fbdo, path, dailyOverflowCount);
-
+    // Reset daily
     dailyIRCount = 0;
     dailyOverflowCount = 0;
     dailyVibrationCount = 0;
@@ -306,33 +301,39 @@ void updateDailyAnalytics() {
     readingCount = 0;
 
     lastDayReset = millis();
-    //You check a clock. If 24 hours have passed since yesterday, you start a new daily diary page.
   }
 }
 
-void updateMonthlyAnalytics() {
-  if (millis() - lastMonthReset >= MONTH_MS) {
-    monthlyOverflowCount = 0; // reset the monthly count
-    lastMonthReset = millis();
-  }
+void storeHistory() {
+  String path = "/drains/" + String(DRAIN_ID) + "/history/";
+  float avgWater = 0;
+  if (readingCount > 0)
+    avgWater = totalWaterLevel / readingCount;
+
+  Firebase.RTDB.setFloat(&fbdo, path + "avgWaterLevel", avgWater);
+  Firebase.RTDB.setInt(&fbdo, path + "overflowCount", dailyOverflowCount);
+  Firebase.RTDB.setInt(&fbdo, path + "irCount", dailyIRCount);
 }
 
+void predictBlockageRisk() {
+  if (waterLevelCM < 10 && gasValue > 1800)
+    predictedRisk = "HIGH";
+  else if (waterLevelCM < 15)
+    predictedRisk = "MEDIUM";
+  else
+    predictedRisk = "LOW";
+}
 
 void handleDashboardCommands() {
-
   String path = "/drains/" + String(DRAIN_ID) + "/commands/motor";
-
   if (Firebase.RTDB.getString(&fbdo, path)) {
-
     String cmd = fbdo.stringData();
-
     if (cmd == "ON") {
-      digitalWrite(IN1, HIGH);   // forward
+      digitalWrite(IN1, HIGH);
       digitalWrite(IN2, LOW);
       digitalWrite(ENA, HIGH);
       motorActive = true;
     }
-
     if (cmd == "OFF") {
       digitalWrite(ENA, LOW);
       motorActive = false;
@@ -341,18 +342,13 @@ void handleDashboardCommands() {
 }
 
 void logEvents() {
-
-  //This function logs severe blockage events to Firebase so the dashboard always shows the latest critical drain condition.
-
   if (drainState == "Severe") {
-
     String path = "/drains/" + String(DRAIN_ID) + "/events/latest";
     Firebase.RTDB.setString(&fbdo, path, "Severe blockage detected");
   }
 }
 
 void sendLiveData() {
-
   String base = "/drains/" + String(DRAIN_ID) + "/";
 
   Firebase.RTDB.setFloat(&fbdo, base + "live/waterLevel", waterLevelCM);
@@ -370,6 +366,11 @@ void sendLiveData() {
   Firebase.RTDB.setInt(&fbdo, base + "daily/irCount", dailyIRCount);
   Firebase.RTDB.setInt(&fbdo, base + "daily/overflowCount", dailyOverflowCount);
   Firebase.RTDB.setInt(&fbdo, base + "daily/motorRunTime_sec", motorRunTimeToday / 1000);
+  Firebase.RTDB.setInt(&fbdo, base + "daily/vibrationCount", dailyVibrationCount);
 
+  // Prediction
+  Firebase.RTDB.setString(&fbdo, base + "prediction/risk", predictedRisk);
+
+  // Monthly overflow (single entry)
   Firebase.RTDB.setInt(&fbdo, base + "monthly/overflowCount", monthlyOverflowCount);
 }
