@@ -1,133 +1,232 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <title>DrainWatch Pro | IoT Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoT Drainage Monitoring Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
+
 <body>
+  <div class="container mt-4">
 
-<nav class="navbar navbar-expand-lg navbar-dark sticky-top">
-  <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="#">DRAIN<span class="text-primary">WATCH</span> 001</a>
-    <div class="d-flex align-items-center">
-        <span class="badge bg-danger me-3" id="systemStatus">SYSTEM CRITICAL</span>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
-    <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link" href="#cards">Sensors</a></li>
-        <li class="nav-item"><a class="nav-link" href="#graphs">Analytics</a></li>
-        <li class="nav-item"><a class="nav-link" href="#motor">Actuator</a></li>
-      </ul>
-    </div>
-  </div>
-</nav>
+    <h2 class="title">Drain Network Overview</h2>
+    <p class="subtitle">Network Status • Smart Drain Monitoring</p>
 
-<div class="container mt-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4">Real-Time Monitoring</h2>
-    <div class="btn-group btn-group-sm">
-      <button class="btn btn-outline-primary active" onclick="updateTimeframe('daily')">Daily</button>
-      <button class="btn btn-outline-primary" onclick="updateTimeframe('weekly')">Weekly</button>
-      <button class="btn btn-outline-primary" onclick="updateTimeframe('monthly')">Monthly</button>
-    </div>
-  </div>
-
-  <div id="cards" class="row g-3">
-    <div class="col-md-4 col-lg-2-4">
-      <div class="sensor-card">
-        <div class="label">Ultrasonic</div>
-        <div class="value" id="ultraVal">12<small>cm</small></div>
-        <div class="status-indicator status-danger"></div>
-      </div>
-    </div>
-    <div class="col-md-4 col-lg-2-4">
-      <div class="sensor-card">
-        <div class="label">Smoke/Gas</div>
-        <div class="value" id="mq2Val">340<small>ppm</small></div>
-        <div class="status-indicator status-warn"></div>
-      </div>
-    </div>
-    <div class="col-md-4 col-lg-2-4">
-      <div class="sensor-card">
-        <div class="label">IR Blockage</div>
-        <div class="value" id="irVal">5</div>
-        <div class="status-indicator status-ok"></div>
-      </div>
-    </div>
-    <div class="col-md-6 col-lg-2-4">
-      <div class="sensor-card">
-        <div class="label">Vibration</div>
-        <div class="value" id="vibVal">12.4<small>Hz</small></div>
-        <div class="status-indicator status-ok"></div>
-      </div>
-    </div>
-    <div class="col-md-6 col-lg-2-4">
-      <div class="sensor-card">
-        <div class="label">Overflow</div>
-        <div class="value text-danger" id="floatVal">YES</div>
-        <div class="status-indicator status-danger"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="graphs" class="row mt-5">
-    <div class="col-lg-8">
-        <div class="chart-container">
-            <h5 class="mb-3">Distance & Gas Trends</h5>
-            <canvas id="mainChart"></canvas>
+    <!-- DRAIN STATUS CARDS -->
+    <div class="row g-4">
+      <div class="col-md-3">
+        <div class="drain-card healthy">
+          <h5>DRAIN_001</h5>
+          <span class="status">Healthy</span>
+          <p>Water Level: <b>12.5 cm</b></p>
         </div>
-    </div>
-    <div class="col-lg-4">
-        <div class="chart-container">
-            <h5 class="mb-3">Event Frequency</h5>
-            <canvas id="eventChart"></canvas>
+      </div>
+      <div class="col-md-3">
+        <div class="drain-card monitoring">
+          <h5>DRAIN_002</h5>
+          <span class="status">Monitoring</span>
+          <p>Water Level: <b>18.3 cm</b></p>
         </div>
-    </div>
-  </div>
-
-  <div id="motor" class="row mt-4 mb-5">
-    <div class="col-12">
-        <div class="control-panel">
-            <h5>Actuator Command Center</h5>
-            <div class="row align-items-center">
-                <div class="col-md-6 text-center mb-3 mb-md-0">
-                    <button class="btn btn-action" onclick="setDir('left')">REVERSE</button>
-                    <button class="btn btn-stop mx-2" onclick="setDir('stop')">STOP</button>
-                    <button class="btn btn-action" onclick="setDir('right')">FORWARD</button>
-                </div>
-                <div class="col-md-6 text-center">
-                    <div class="speed-control">
-                        <button class="btn btn-sm btn-outline-light" onclick="speedDown()">-</button>
-                        <span class="mx-3 fw-bold">Speed: <span id="speedVal" class="text-primary">50%</span></span>
-                        <button class="btn btn-sm btn-outline-light" onclick="speedUp()">+</button>
-                    </div>
-                </div>
-            </div>
+      </div>
+      <div class="col-md-3">
+        <div class="drain-card critical">
+          <h5>DRAIN_003</h5>
+          <span class="status">Critical</span>
+          <p>Water Level: <b>25.7 cm</b></p>
         </div>
-    </div>
-  </div>
-</div>
-
-<div class="modal fade" id="alertModal text-dark" id="alertModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content bg-dark border-danger">
-      <div class="modal-body text-center p-5">
-        <h2 class="text-danger mb-3">🚨 BLOCKAGE DETECTED</h2>
-        <p class="text-white">Ultrasonic and Float sensors confirm critical levels. Actuator automated response engaged.</p>
-        <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Acknowledge</button>
+      </div>
+      <div class="col-md-3">
+        <div class="drain-card healthy">
+          <h5>DRAIN_004</h5>
+          <span class="status">Healthy</span>
+          <p>Water Level: <b>10.2 cm</b></p>
+        </div>
       </div>
     </div>
-  </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="app.js"></script>
+    <!-- SENSOR PANEL -->
+    <h3 class="section-title mt-5">Sensor Analytics</h3>
+    <div class="row g-3">
+      <div class="col-md-2 col-6">
+        <div class="sensor-box blue">
+          <div class="val" id="webUltra">Ultrasonic
+            <h4>12.5 cm</h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="sensor-box orange">
+          <div class="val" id="webGas">MQ2 Gas
+            <h4>450 ppm</h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="sensor-box green">
+          <div class="val" id="webFloat">Float Sensor
+            <h4>ON</h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="sensor-box red">
+          <div class="val" id="webIR">IR Blockage
+            <h4>OFF</h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="sensor-box teal">
+          <div class="val" id="webVibration">Vibration
+            <h4>8 Hits</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOTOR STATUS -->
+    <div class="mt-3">
+      <p>Motor Status: <span id="webMotor">OFF</span></p>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="row mt-4">
+      <div class="col-lg-6">
+        <div class="chart-box">
+          <h5>Water Level Chart</h5>
+          <canvas id="waterChart"></canvas>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="chart-box">
+          <h5>Gas Level Chart</h5>
+          <canvas id="gasChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-12 mt-4">
+      <div class="chart-box">
+        <h5>Drain Activity Chart (Overflow, Vibration, IR)</h5>
+        <canvas id="activityChart"></canvas>
+      </div>
+    </div>
+
+    <!-- MOTOR CONTROL -->
+    <div class="row mt-5">
+      <div class="col-12">
+        <div class="control-panel text-center">
+          <h4>Drain Motor Control</h4>
+          <br>
+          <button id="motorON" class="btn btn-success mx-2">ON</button>
+          <button id="motorOFF" class="btn btn-danger mx-2">OFF</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Firebase + Dashboard Script -->
+  <script>
+    // ===== FIREBASE CONFIG =====
+    var firebaseConfig = {
+      apiKey: "AIzaSyCeEBw9_xuIz0D7XyMIK06rkmATL-wmIm4",
+      databaseURL: "https://drainwatch-caca8-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "drainwatch-caca8"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.database();
+
+    // SENSOR ELEMENTS
+    const waterEl = document.getElementById("webUltra");
+    const gasEl = document.getElementById("webGas");
+    const floatEl = document.getElementById("webFloat");
+    const irEl = document.getElementById("webIR");
+    const vibEl = document.getElementById("webVibration");
+    const motorEl = document.getElementById("webMotor");
+
+    const drainId = "DRAIN_001";
+
+    // CHARTS SETUP FUNCTION
+    function createChart(ctx, label, color) {
+      return new Chart(ctx, {
+        type: 'line',
+        data: { labels: Array(10).fill(''), datasets: [{ label, data: Array(10).fill(0), borderColor: color, fill: false }] },
+        options: { responsive: true, animation: false, scales: { y: { beginAtZero: true } } }
+      });
+    }
+
+    var waterChart = createChart(document.getElementById("waterChart").getContext("2d"), "Water Level", "#3b82f6");
+    var gasChart = createChart(document.getElementById("gasChart").getContext("2d"), "Gas Level", "#f97316");
+
+    // COMBINED ACTIVITY CHART
+    var activityChart = new Chart(document.getElementById("activityChart").getContext("2d"), {
+      type: 'line',
+      data: {
+        labels: Array(10).fill(''),
+        datasets: [
+          { label: 'Overflow', data: Array(10).fill(0), borderColor: '#f59e0b', fill: false },
+          { label: 'Vibration', data: Array(10).fill(0), borderColor: '#3b82f6', fill: false },
+          { label: 'IR Blockage', data: Array(10).fill(0), borderColor: '#ef4444', fill: false }
+        ]
+      },
+      options: { responsive: true, animation: false, scales: { y: { beginAtZero: true } } }
+    });
+
+    function updateChart(chart, newData) {
+      chart.data.datasets[0].data.push(newData);
+      if (chart.data.datasets[0].data.length > 10) chart.data.datasets[0].data.shift();
+      chart.update();
+    }
+
+    // LISTEN FOR LIVE DATA
+    db.ref("drains/" + drainId + "/live").on("value", function(snapshot) {
+  const data = snapshot.val();
+  if (data) {
+    // Update sensor panel
+    waterEl.innerHTML = data.waterLevel.toFixed(1) + " cm";
+    gasEl.innerHTML = data.gasValue + " ppm";
+    floatEl.innerHTML = data.floatSensor ? "ON" : "OFF";
+    irEl.innerHTML = data.ir + " Hits";  // use count
+    vibEl.innerHTML = data.vibration + " Hits";
+    motorEl.innerHTML = data.motorActive ? "ON" : "OFF";
+    motorEl.style.color = data.motorActive ? "#10b981" : "#ef4444";
+
+    // Update individual charts
+    updateChart(waterChart, data.waterLevel);
+    updateChart(gasChart, data.gasValue);
+   
+
+    // ===== Update combined activity chart =====
+    const now = new Date().toLocaleTimeString(); // label
+    activityChart.data.labels.push(now);
+
+    activityChart.data.datasets[0].data.push(data.overflowCount || 0); // Overflow
+    activityChart.data.datasets[1].data.push(data.vibration || 0);    // Vibration
+    activityChart.data.datasets[2].data.push(data.ir || 0);           // IR count
+
+    // Keep only last 10 points
+    if (activityChart.data.labels.length > 10) activityChart.data.labels.shift();
+    activityChart.data.datasets.forEach(ds => { if (ds.data.length > 10) ds.data.shift(); });
+
+    activityChart.update();
+  }
+});
+
+    // MOTOR CONTROL BUTTONS
+    document.getElementById("motorON").addEventListener("click", function () {
+      db.ref("drains/" + drainId + "/commands/motor").set("ON");
+    });
+    document.getElementById("motorOFF").addEventListener("click", function () {
+      db.ref("drains/" + drainId + "/commands/motor").set("OFF");
+    });
+  </script>
 </body>
+
 </html>
