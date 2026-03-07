@@ -10,6 +10,22 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <style>
+    /* Small toast style */
+    #toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background-color: #ef4444;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      display: none;
+      z-index: 9999;
+      font-weight: bold;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+  </style>
 </head>
 
 <body>
@@ -21,31 +37,10 @@
     <!-- DRAIN STATUS CARDS -->
     <div class="row g-4">
       <div class="col-md-3">
-        <div class="drain-card healthy">
+        <div class="drain-card healthy" id="drainCard">
           <h5>DRAIN_001</h5>
           <span class="status">Healthy</span>
           <p>Water Level: <b>12.5 cm</b></p>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="drain-card monitoring">
-          <h5>DRAIN_002</h5>
-          <span class="status">Monitoring</span>
-          <p>Water Level: <b>18.3 cm</b></p>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="drain-card critical">
-          <h5>DRAIN_003</h5>
-          <span class="status">Critical</span>
-          <p>Water Level: <b>25.7 cm</b></p>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="drain-card healthy">
-          <h5>DRAIN_004</h5>
-          <span class="status">Healthy</span>
-          <p>Water Level: <b>10.2 cm</b></p>
         </div>
       </div>
     </div>
@@ -132,7 +127,9 @@
 
   </div>
 
-  <!-- Firebase + Dashboard Script -->
+  <!-- Toast -->
+  <div id="toast"></div>
+
   <script>
     // ===== FIREBASE CONFIG =====
     var firebaseConfig = {
@@ -150,14 +147,26 @@
     const irEl = document.getElementById("webIR");
     const vibEl = document.getElementById("webVibration");
     const motorEl = document.getElementById("webMotor");
+    const drainCard = document.getElementById("drainCard");
+    const toast = document.getElementById("toast");
 
     const drainId = "DRAIN_001";
+
+    // Show toast notification
+    function showToast(message, color = "#ef4444") {
+      toast.innerText = message;
+      toast.style.backgroundColor = color;
+      toast.style.display = "block";
+      setTimeout(() => {
+        toast.style.display = "none";
+      }, 2500);
+    }
 
     // CHARTS SETUP FUNCTION
     function createChart(ctx, label, color) {
       return new Chart(ctx, {
         type: 'line',
-        data: { labels: Array(10).fill(''), datasets: [{ label, data: Array(10).fill(0), borderColor: color, fill: false }] },
+        data: { labels: [], datasets: [{ label, data: [], borderColor: color, fill: false }] },
         options: { responsive: true, animation: false, scales: { y: { beginAtZero: true } } }
       });
     }
@@ -165,61 +174,117 @@
     var waterChart = createChart(document.getElementById("waterChart").getContext("2d"), "Water Level", "#3b82f6");
     var gasChart = createChart(document.getElementById("gasChart").getContext("2d"), "Gas Level", "#f97316");
 
-    // COMBINED ACTIVITY CHART
     var activityChart = new Chart(document.getElementById("activityChart").getContext("2d"), {
       type: 'line',
       data: {
-        labels: Array(10).fill(''),
+        labels: [],
         datasets: [
-          { label: 'Overflow', data: Array(10).fill(0), borderColor: '#f59e0b', fill: false },
-          { label: 'Vibration', data: Array(10).fill(0), borderColor: '#3b82f6', fill: false },
-          { label: 'IR Blockage', data: Array(10).fill(0), borderColor: '#ef4444', fill: false }
+          { label: 'Overflow', data: [], borderColor: '#f59e0b', fill: false },
+          { label: 'Vibration', data: [], borderColor: '#3b82f6', fill: false },
+          { label: 'IR Blockage', data: [], borderColor: '#ef4444', fill: false }
         ]
       },
       options: { responsive: true, animation: false, scales: { y: { beginAtZero: true } } }
     });
 
     function updateChart(chart, newData) {
-      chart.data.datasets[0].data.push(newData);
+      chart.data.labels.push(new Date().toLocaleTimeString());
+      if (chart.data.labels.length > 10) chart.data.labels.shift();
+
+      chart.data.datasets[0].data.push(newData || 0);
       if (chart.data.datasets[0].data.length > 10) chart.data.datasets[0].data.shift();
+
       chart.update();
     }
 
-    // LISTEN FOR LIVE DATA
-    db.ref("drains/" + drainId + "/live").on("value", function(snapshot) {
+    // LIVE SENSOR DATA 
+db.ref("drains/" + drainId + "/live").on("value", function (snapshot) {
+
   const data = snapshot.val();
-  if (data) {
-    // Update sensor panel
-    waterEl.innerHTML = data.waterLevel.toFixed(1) + " cm";
-    gasEl.innerHTML = data.gasValue + " ppm";
-    floatEl.innerHTML = data.floatSensor ? "ON" : "OFF";
-    irEl.innerHTML = data.ir + " Hits";  // use count
-    vibEl.innerHTML = data.vibration + " Hits";
-    motorEl.innerHTML = data.motorActive ? "ON" : "OFF";
-    motorEl.style.color = data.motorActive ? "#10b981" : "#ef4444";
+  if (!data) return;
 
-    // Update individual charts
-    updateChart(waterChart, data.waterLevel);
-    updateChart(gasChart, data.gasValue);
-   
+  // Update sensor panel
+  waterEl.innerHTML = (data.waterLevel?.toFixed(1) || 0) + " cm";
+  gasEl.innerHTML = (data.gasValue || 0) + " ppm";
 
-    // ===== Update combined activity chart =====
-    const now = new Date().toLocaleTimeString(); // label
-    activityChart.data.labels.push(now);
+  motorEl.innerHTML = data.motorActive ? "ON" : "OFF";
+  motorEl.style.color = data.motorActive ? "#10b981" : "#ef4444";
 
-    activityChart.data.datasets[0].data.push(data.overflowCount || 0); // Overflow
-    activityChart.data.datasets[1].data.push(data.vibration || 0);    // Vibration
-    activityChart.data.datasets[2].data.push(data.ir || 0);           // IR count
-
-    // Keep only last 10 points
-    if (activityChart.data.labels.length > 10) activityChart.data.labels.shift();
-    activityChart.data.datasets.forEach(ds => { if (ds.data.length > 10) ds.data.shift(); });
-
-    activityChart.update();
+  // Alerts
+  if (data.waterLevel > 6) {
+    waterEl.parentElement.style.backgroundColor = "#ef4444";
+    showToast("Water level too high!");
+  } else {
+    waterEl.parentElement.style.backgroundColor = "";
   }
+
+  // Drain Card Status
+  if (data.waterLevel > 4) {
+    drainCard.classList.add("critical");
+    drainCard.querySelector(".status").innerText = "Critical";
+  } else {
+    drainCard.classList.remove("critical");
+    drainCard.querySelector(".status").innerText = "Healthy";
+  }
+
+  // Update charts
+  updateChart(waterChart, data.waterLevel);
+  updateChart(gasChart, data.gasValue);
+
 });
 
-    // MOTOR CONTROL BUTTONS
+
+// ===== DAILY EVENT COUNTS =====
+db.ref("drains/" + drainId + "/daily").on("value", function (snapshot) {
+
+  const data = snapshot.val();
+  if (!data) return;
+
+  // Update cards
+  floatEl.innerHTML = (data.overflowCount || 0) + " Hits";
+  irEl.innerHTML = (data.irCount || 0) + " Hits";
+  vibEl.innerHTML = (data.vibrationCount || 0) + " Hits";
+
+  // Alerts
+  if (data.overflowCount > 0) {
+    floatEl.parentElement.style.backgroundColor = "#ef4444";
+    showToast("Water overflow detected!");
+  } else {
+    floatEl.parentElement.style.backgroundColor = "";
+  }
+
+  if (data.vibrationCount > 5) {
+    vibEl.parentElement.style.backgroundColor = "#f59e0b";
+    showToast("Excessive vibration detected!", "#f59e0b");
+  } else {
+    vibEl.parentElement.style.backgroundColor = "";
+  }
+
+  if (data.irCount > 0) {
+    irEl.parentElement.style.backgroundColor = "#ef4444";
+    showToast("Object detected by IR sensor!");
+  } else {
+    irEl.parentElement.style.backgroundColor = "";
+  }
+
+  // Activity chart
+  activityChart.data.labels.push(new Date().toLocaleTimeString());
+  if (activityChart.data.labels.length > 10)
+    activityChart.data.labels.shift();
+
+  activityChart.data.datasets[0].data.push(data.overflowCount || 0);
+  activityChart.data.datasets[1].data.push(data.vibrationCount || 0);
+  activityChart.data.datasets[2].data.push(data.irCount || 0);
+
+  activityChart.data.datasets.forEach(ds => {
+    if (ds.data.length > 10) ds.data.shift();
+  });
+
+  activityChart.update();
+
+});
+
+    // MOTOR CONTROL
     document.getElementById("motorON").addEventListener("click", function () {
       db.ref("drains/" + drainId + "/commands/motor").set("ON");
     });
