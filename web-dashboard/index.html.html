@@ -1,137 +1,356 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
+  <link rel="stylesheet" href="style.css">
+
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IoT Drainage Monitoring Dashboard</title>
+  <title>DrainWatch — DRAIN_001</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <style>
-    /* Small toast style */
-    #toast {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background-color: #ef4444;
-      color: white;
-      padding: 10px 20px;
-      border-radius: 5px;
-      display: none;
-      z-index: 9999;
-      font-weight: bold;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    }
-  </style>
+
 </head>
 
 <body>
-  <div class="container mt-4">
 
-    <h2 class="title">Drain Network Overview</h2>
-    <p class="subtitle">Network Status • Smart Drain Monitoring</p>
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-brand">DRAIN<span>WATCH</span></div>
+    <div class="online-badge">
+      <div class="dot" id="onlineDot"></div>
+      <span id="onlineLabel">Connecting...</span>
+      <span class="last-seen" id="lastSeenLabel"></span>
+    </div>
+  </div>
 
-    <!-- DRAIN STATUS CARDS -->
+  <!-- TABS -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('live', this)">Live</button>
+    <button class="tab-btn" onclick="switchTab('control', this)">Control</button>
+    <button class="tab-btn" onclick="switchTab('charts', this)">Charts</button>
+    <button class="tab-btn" onclick="switchTab('history', this)">History</button>
+    <button class="tab-btn" onclick="switchTab('analytics', this)">Analytics</button>
+  </div>
+
+  <!-- 
+       TAB 1 — LIVE-->
+  <div class="drain-id-card">
+    <div class="id-info">
+        <p>Asset Identifier</p>
+        <h2>DRAIN-001</h2>
+    </div>
+    <div class="status-chip">
+        System Active
+    </div>
+</div>
+
+  <div class="tab-content active" id="tab-live">
+
+    <!-- State + Score row -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-label">Drain State</div>
+          <div id="stateEl"><span class="state-badge state-normal">Normal</span></div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card accent-red">
+          <div class="stat-label">Blockage Score</div>
+          <div class="stat-value" id="blockageEl">0<span class="stat-unit">/ 100</span></div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card accent-green">
+          <div class="stat-label">Health Score</div>
+          <div class="stat-value" id="healthEl">100<span class="stat-unit">/ 100</span></div>
+          <div class="health-bar-wrap">
+            <div class="health-bar-bg">
+              <div class="health-bar-fill" id="healthBar" style="width:100%;background:var(--green)"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card accent-yellow">
+          <div class="stat-label">Predicted Risk</div>
+          <div class="stat-value" id="riskEl">LOW</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensors -->
+    <div class="section-title">Sensor Readings</div>
+    <div class="row g-3 mb-4">
+      <div class="col-md-2 col-6">
+        <div class="sensor-box blue" id="boxWater">
+          <div class="s-label">Ultrasonic</div>
+          <div class="s-val" id="waterEl">-- cm</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="sensor-box orange" id="boxGas">
+          <div class="s-label">MQ2 Gas</div>
+          <div class="s-val" id="gasEl">--</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="sensor-box green" id="boxFloat">
+          <div class="s-label">Float</div>
+          <div class="s-val" id="floatEl">--</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="sensor-box red" id="boxIR">
+          <div class="s-label">IR / Trash</div>
+          <div class="s-val" id="irEl">--</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="sensor-box teal" id="boxVib">
+          <div class="s-label">Vibration</div>
+          <div class="s-val" id="vibEl">--</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="sensor-box" style="border-bottom:3px solid var(--muted)" id="boxMotor">
+          <div class="s-label">Motor</div>
+          <div class="s-val" id="motorStateEl">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WiFi + Daily quick stats -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-2 col-6">
+        <div class="stat-card accent-teal">
+          <div class="stat-label">WiFi</div>
+          <div class="stat-value" id="wifiEl" style="font-size:18px">--</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="stat-card accent-blue">
+          <div class="stat-label">IR Count Today</div>
+          <div class="stat-value" id="irCountEl">0</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="stat-card accent-orange">
+          <div class="stat-label">Overflow Today</div>
+          <div class="stat-value" id="overflowEl">0</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="stat-card accent-teal">
+          <div class="stat-label">Vibrations Today</div>
+          <div class="stat-value" id="vibCountEl">0</div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="stat-card accent-green">
+          <div class="stat-label">Motor Run Today</div>
+          <div class="stat-value" id="motorRunEl">0<span class="stat-unit">s</span></div>
+        </div>
+      </div>
+      <div class="col-md-2 col-6">
+        <div class="stat-card accent-yellow">
+          <div class="stat-label">Monthly Overflow</div>
+          <div class="stat-value" id="monthlyEl">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Faults -->
+    <div class="section-title">Sensor Faults</div>
+    <div class="fault-row" id="faultRow">
+      <div class="fault-pill" id="fUltrasonic">● Ultrasonic OK</div>
+      <div class="fault-pill" id="fVibration">● Vibration OK</div>
+      <div class="fault-pill" id="fIR">● IR OK</div>
+      <div class="fault-pill" id="fMQ2">● MQ2 OK</div>
+      <div class="fault-pill" id="fFloat">● Float OK</div>
+    </div>
+
+    <!-- Latest Event -->
+    <div class="section-title mt-4">Latest Event</div>
+    <div class="event-item" id="eventBox">
+      <div id="eventMsg">No events recorded</div>
+      <div class="event-time" id="eventTime"></div>
+    </div>
+
+  </div>
+
+  <!--
+       TAB 2 — CONTROL
+  -->
+  <div class="tab-content" id="tab-control">
+
+    <div class="control-panel">
+      <div class="section-title">Motor Status</div>
+      <div class="motor-status-row">
+        <div class="motor-stat">
+          <span>State</span>
+          <span id="ctrlMotorState" style="color:var(--green)">--</span>
+        </div>
+        <div class="motor-stat">
+          <span>Speed</span>
+          <span id="ctrlMotorSpeed">--</span>
+        </div>
+        <div class="motor-stat">
+          <span>Direction</span>
+          <span id="ctrlMotorDir">--</span>
+        </div>
+        <div class="motor-stat">
+          <span>Override</span>
+          <span id="ctrlOverride">AUTO</span>
+        </div>
+      </div>
+
+      <!-- ON / OFF / AUTO -->
+      <div class="ctrl-label">Motor Command</div>
+      <div class="d-flex gap-3 flex-wrap mb-4">
+        <button class="btn-ctrl btn-on"   id="btnON">ON</button>
+        <button class="btn-ctrl btn-off"  id="btnOFF">OFF</button>
+        <button class="btn-ctrl btn-auto" id="btnAUTO">AUTO</button>
+      </div>
+
+      <!-- Speed -->
+      <div class="ctrl-label">Motor Speed — <span id="speedLabel">200</span> / 255</div>
+      <input type="range" min="0" max="255" value="200" class="speed-slider mb-4" id="speedSlider">
+
+      <!-- Direction -->
+      <div class="ctrl-label">Motor Direction</div>
+      <div class="d-flex gap-3 flex-wrap">
+        <button class="btn-ctrl btn-dir active-dir" id="btnLEFT">◀ LEFT</button>
+        <button class="btn-ctrl btn-dir" id="btnRIGHT">RIGHT ▶</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 
+       TAB 3 — CHARTS (LIVE)
+ -->
+  <div class="tab-content" id="tab-charts">
     <div class="row g-4">
-      <div class="col-md-3">
-        <div class="drain-card healthy" id="drainCard">
-          <h5>DRAIN_001</h5>
-          <span class="status">Healthy</span>
-          <p>Water Level: <b>12.5 cm</b></p>
-        </div>
-      </div>
-    </div>
-
-    <!-- SENSOR PANEL -->
-    <h3 class="section-title mt-5">Sensor Analytics</h3>
-    <div class="row g-3">
-      <div class="col-md-2 col-6">
-        <div class="sensor-box blue">
-          <div class="val" id="webUltra">Ultrasonic
-            <h4>12.5 cm</h4>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-2 col-6">
-        <div class="sensor-box orange">
-          <div class="val" id="webGas">MQ2 Gas
-            <h4>450 ppm</h4>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-2 col-6">
-        <div class="sensor-box green">
-          <div class="val" id="webFloat">Float Sensor
-            <h4>ON</h4>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-2 col-6">
-        <div class="sensor-box red">
-          <div class="val" id="webIR">IR Blockage
-            <h4>OFF</h4>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-2 col-6">
-        <div class="sensor-box teal">
-          <div class="val" id="webVibration">Vibration
-            <h4>8 Hits</h4>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- MOTOR STATUS -->
-    <div class="mt-3">
-      <p>Motor Status: <span id="webMotor">OFF</span></p>
-    </div>
-
-    <!-- CHARTS -->
-    <div class="row mt-4">
       <div class="col-lg-6">
         <div class="chart-box">
-          <h5>Water Level Chart</h5>
+          <h5>Water Level (cm)</h5>
           <canvas id="waterChart"></canvas>
         </div>
       </div>
       <div class="col-lg-6">
         <div class="chart-box">
-          <h5>Gas Level Chart</h5>
+          <h5>Gas Level (raw ADC)</h5>
           <canvas id="gasChart"></canvas>
         </div>
       </div>
-    </div>
-
-    <div class="col-lg-12 mt-4">
-      <div class="chart-box">
-        <h5>Drain Activity Chart (Overflow, Vibration, IR)</h5>
-        <canvas id="activityChart"></canvas>
+      <div class="col-lg-6">
+        <div class="chart-box">
+          <h5>Blockage Score</h5>
+          <canvas id="scoreChart"></canvas>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="chart-box">
+          <h5>Daily Activity — Overflow / Vibration / IR</h5>
+          <canvas id="activityChart"></canvas>
+        </div>
       </div>
     </div>
+  </div>
 
-    <!-- MOTOR CONTROL -->
-    <div class="row mt-5">
-      <div class="col-12">
-        <div class="control-panel text-center">
-          <h4>Drain Motor Control</h4>
-          <br>
-          <button id="motorON" class="btn btn-success mx-2">ON</button>
-          <button id="motorOFF" class="btn btn-danger mx-2">OFF</button>
+  <!-- 
+       TAB 4 — HISTORY (dated snapshots)
+  -->
+  <div class="tab-content" id="tab-history">
+    <div class="section-title">Daily History Snapshots</div>
+    <div class="chart-box mb-4">
+      <h5>Avg Water Level — Last 14 Days</h5>
+      <canvas id="histWaterChart"></canvas>
+    </div>
+    <div class="chart-box mb-4">
+      <h5>Daily Overflow Count — Last 14 Days</h5>
+      <canvas id="histOverflowChart"></canvas>
+    </div>
+    <div class="chart-box mb-4">
+      <table class="hist-table" id="histTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Avg Water (cm)</th>
+            <th>Avg Gas</th>
+            <th>Avg Health</th>
+            <th>Overflow</th>
+            <th>IR Count</th>
+            <th>Vibrations</th>
+            <th>Motor Run (s)</th>
+          </tr>
+        </thead>
+        <tbody id="histBody">
+          <tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px">Loading history...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!--
+       TAB 5 — ANALYTICS (weekly / monthly)
+  -->
+  <div class="tab-content" id="tab-analytics">
+
+    <div class="section-title">Weekly Summary (Last 7 Days)</div>
+    <div class="row g-3 mb-5" id="weeklySummary">
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="w_overflow">--</div><div class="summary-label">Overflows</div></div></div>
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="w_ir">--</div><div class="summary-label">IR Events</div></div></div>
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="w_vib">--</div><div class="summary-label">Vibrations</div></div></div>
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="w_motor">--</div><div class="summary-label">Motor Run (s)</div></div></div>
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="w_water">--</div><div class="summary-label">Avg Water (cm)</div></div></div>
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="w_health">--</div><div class="summary-label">Avg Health</div></div></div>
+    </div>
+
+    <div class="section-title">Monthly Summary (Last 30 Days)</div>
+    <div class="row g-3 mb-5" id="monthlySummary">
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="m_overflow">--</div><div class="summary-label">Overflows</div></div></div>
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="m_ir">--</div><div class="summary-label">IR Events</div></div></div>
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="m_vib">--</div><div class="summary-label">Vibrations</div></div></div>
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="m_motor">--</div><div class="summary-label">Motor Run (s)</div></div></div>
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="m_water">--</div><div class="summary-label">Avg Water (cm)</div></div></div>
+      <div class="col-md-2 col-6"><div class="summary-box"><div class="summary-val" id="m_health">--</div><div class="summary-label">Avg Health</div></div></div>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <div class="chart-box">
+          <h5>Weekly Overflow Trend</h5>
+          <canvas id="weeklyOverflowChart"></canvas>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="chart-box">
+          <h5>Weekly Avg Health Score</h5>
+          <canvas id="weeklyHealthChart"></canvas>
+        </div>
+      </div>
+      <div class="col-lg-12">
+        <div class="chart-box">
+          <h5>Monthly Daily Overflow — All 30 Days</h5>
+          <canvas id="monthlyChart"></canvas>
         </div>
       </div>
     </div>
 
   </div>
 
-  <!-- Toast -->
+  <!-- TOAST -->
   <div id="toast"></div>
 
   <script>
-    // ===== FIREBASE CONFIG =====
+  
+    //  FIREBASE INIT
+    
     var firebaseConfig = {
       apiKey: "AIzaSyCeEBw9_xuIz0D7XyMIK06rkmATL-wmIm4",
       databaseURL: "https://drainwatch-caca8-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -139,159 +358,405 @@
     };
     firebase.initializeApp(firebaseConfig);
     var db = firebase.database();
-
-    // SENSOR ELEMENTS
-    const waterEl = document.getElementById("webUltra");
-    const gasEl = document.getElementById("webGas");
-    const floatEl = document.getElementById("webFloat");
-    const irEl = document.getElementById("webIR");
-    const vibEl = document.getElementById("webVibration");
-    const motorEl = document.getElementById("webMotor");
-    const drainCard = document.getElementById("drainCard");
-    const toast = document.getElementById("toast");
-
     const drainId = "DRAIN_001";
 
-    // Show toast notification
-    function showToast(message, color = "#ef4444") {
-      toast.innerText = message;
-      toast.style.backgroundColor = color;
-      toast.style.display = "block";
-      setTimeout(() => {
-        toast.style.display = "none";
-      }, 2500);
+
+    //  TAB SWITCHING
+    
+    function switchTab(name, btn) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      btn.classList.add('active');
+
+      // Load history/analytics when those tabs are opened
+      if (name === 'history' || name === 'analytics') loadHistory();
     }
 
-    // CHARTS SETUP FUNCTION
-    function createChart(ctx, label, color) {
-      return new Chart(ctx, {
+    
+    //  TOAST
+  
+    const toast = document.getElementById("toast");
+    let toastTimer = null;
+    function showToast(msg, color) {
+      toast.innerText = msg;
+      toast.style.backgroundColor = color || "#ef4444";
+      toast.style.display = "block";
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.style.display = "none"; }, 3000);
+    }
+
+  
+    //  LIVE CHARTS (rolling 20 points)
+  
+    function makeChart(id, label, color) {
+      return new Chart(document.getElementById(id).getContext("2d"), {
         type: 'line',
-        data: { labels: [], datasets: [{ label, data: [], borderColor: color, fill: false }] },
-        options: { responsive: true, animation: false, scales: { y: { beginAtZero: true } } }
+        data: {
+          labels: [],
+          datasets: [{ label, data: [], borderColor: color, backgroundColor: color + '22', fill: true, tension: 0.3, pointRadius: 2 }]
+        },
+        options: {
+          responsive: true, animation: false,
+          plugins: { legend: { labels: { color: '#94a3b8', font: { size: 12 } } } },
+          scales: {
+            x: { ticks: { color: '#475569', maxTicksLimit: 8 }, grid: { color: '#1e293b' } },
+            y: { beginAtZero: true, ticks: { color: '#475569' }, grid: { color: '#263348' } }
+          }
+        }
       });
     }
 
-    var waterChart = createChart(document.getElementById("waterChart").getContext("2d"), "Water Level", "#3b82f6");
-    var gasChart = createChart(document.getElementById("gasChart").getContext("2d"), "Gas Level", "#f97316");
-
+    var waterChart    = makeChart("waterChart",    "Water Level (cm)", "#3b82f6");
+    var gasChart      = makeChart("gasChart",      "Gas (ADC)",        "#f97316");
+    var scoreChart    = makeChart("scoreChart",    "Blockage Score",   "#ef4444");
     var activityChart = new Chart(document.getElementById("activityChart").getContext("2d"), {
       type: 'line',
       data: {
         labels: [],
         datasets: [
-          { label: 'Overflow', data: [], borderColor: '#f59e0b', fill: false },
-          { label: 'Vibration', data: [], borderColor: '#3b82f6', fill: false },
-          { label: 'IR Blockage', data: [], borderColor: '#ef4444', fill: false }
+          { label: 'Overflow',   data: [], borderColor: '#f59e0b', fill: false, tension: 0.3, pointRadius: 2 },
+          { label: 'Vibration',  data: [], borderColor: '#06b6d4', fill: false, tension: 0.3, pointRadius: 2 },
+          { label: 'IR Events',  data: [], borderColor: '#ef4444', fill: false, tension: 0.3, pointRadius: 2 }
         ]
       },
-      options: { responsive: true, animation: false, scales: { y: { beginAtZero: true } } }
+      options: {
+        responsive: true, animation: false,
+        plugins: { legend: { labels: { color: '#94a3b8' } } },
+        scales: {
+          x: { ticks: { color: '#475569', maxTicksLimit: 8 }, grid: { color: '#1e293b' } },
+          y: { beginAtZero: true, ticks: { color: '#475569' }, grid: { color: '#263348' } }
+        }
+      }
     });
 
-    function updateChart(chart, newData) {
-      chart.data.labels.push(new Date().toLocaleTimeString());
-      if (chart.data.labels.length > 10) chart.data.labels.shift();
-
-      chart.data.datasets[0].data.push(newData || 0);
-      if (chart.data.datasets[0].data.length > 10) chart.data.datasets[0].data.shift();
-
+    function pushToChart(chart, value, dsIndex) {
+      const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      if (dsIndex === undefined || dsIndex === 0) {
+        chart.data.labels.push(time);
+        if (chart.data.labels.length > 20) chart.data.labels.shift();
+      }
+      chart.data.datasets[dsIndex || 0].data.push(value || 0);
+      if (chart.data.datasets[dsIndex || 0].data.length > 20)
+        chart.data.datasets[dsIndex || 0].data.shift();
       chart.update();
     }
 
-    // LIVE SENSOR DATA 
-db.ref("drains/" + drainId + "/live").on("value", function (snapshot) {
 
-  const data = snapshot.val();
-  if (!data) return;
+    //  HISTORY CHARTS
+  
+    function makeBarChart(id, label, color) {
+      return new Chart(document.getElementById(id).getContext("2d"), {
+        type: 'bar',
+        data: { labels: [], datasets: [{ label, data: [], backgroundColor: color + '99', borderColor: color, borderWidth: 1 }] },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: '#94a3b8' } } },
+          scales: {
+            x: { ticks: { color: '#475569' }, grid: { color: '#1e293b' } },
+            y: { beginAtZero: true, ticks: { color: '#475569' }, grid: { color: '#263348' } }
+          }
+        }
+      });
+    }
 
-  // Update sensor panel
-  waterEl.innerHTML = (data.waterLevel?.toFixed(1) || 0) + " cm";
-  gasEl.innerHTML = (data.gasValue || 0) + " ppm";
+    var histWaterChart    = makeBarChart("histWaterChart",    "Avg Water Level",  "#3b82f6");
+    var histOverflowChart = makeBarChart("histOverflowChart", "Overflow Count",   "#f59e0b");
 
-  motorEl.innerHTML = data.motorActive ? "ON" : "OFF";
-  motorEl.style.color = data.motorActive ? "#10b981" : "#ef4444";
+    var weeklyOverflowChart = makeBarChart("weeklyOverflowChart", "Overflow / Day",    "#f59e0b");
+    var weeklyHealthChart   = makeBarChart("weeklyHealthChart",   "Avg Health Score",  "#22c55e");
+    var monthlyChart        = makeBarChart("monthlyChart",        "Daily Overflow",    "#3b82f6");
 
-  // Alerts
-  if (data.waterLevel > 6) {
-    waterEl.parentElement.style.backgroundColor = "#ef4444";
-    showToast("Water level too high!");
-  } else {
-    waterEl.parentElement.style.backgroundColor = "";
-  }
+    
+    //  LOAD HISTORY from Firebase
+    //  Reads /drains/DRAIN_001/history/ — sorted by date key
 
-  // Drain Card Status
-  if (data.waterLevel > 4) {
-    drainCard.classList.add("critical");
-    drainCard.querySelector(".status").innerText = "Critical";
-  } else {
-    drainCard.classList.remove("critical");
-    drainCard.querySelector(".status").innerText = "Healthy";
-  }
+    function loadHistory() {
+      db.ref("drains/" + drainId + "/history").orderByKey().limitToLast(30).once("value", function(snap) {
+        const raw = snap.val();
+        if (!raw) return;
 
-  // Update charts
-  updateChart(waterChart, data.waterLevel);
-  updateChart(gasChart, data.gasValue);
+        // Sort dates ascending
+        const dates = Object.keys(raw).sort();
+        const last14 = dates.slice(-14);
+        const last7  = dates.slice(-7);
+        const last30 = dates;
 
-});
+        // History Table
+        const tbody = document.getElementById("histBody");
+        tbody.innerHTML = "";
+        [...dates].reverse().forEach(date => {
+          const d = raw[date];
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${date}</td>
+            <td>${(d.avgWaterLevel || 0).toFixed(2)}</td>
+            <td>${(d.avgGas || 0).toFixed(0)}</td>
+            <td>${(d.avgHealthScore || 0).toFixed(1)}</td>
+            <td>${d.overflowCount || 0}</td>
+            <td>${d.irCount || 0}</td>
+            <td>${d.vibrationCount || 0}</td>
+            <td>${d.motorRunTime_sec || 0}</td>
+          `;
+          tbody.appendChild(tr);
+        });
 
+        // History Charts (14 days) 
+        histWaterChart.data.labels    = last14;
+        histWaterChart.data.datasets[0].data = last14.map(d => (raw[d].avgWaterLevel || 0).toFixed(2));
+        histWaterChart.update();
 
-// ===== DAILY EVENT COUNTS =====
-db.ref("drains/" + drainId + "/daily").on("value", function (snapshot) {
+        histOverflowChart.data.labels = last14;
+        histOverflowChart.data.datasets[0].data = last14.map(d => raw[d].overflowCount || 0);
+        histOverflowChart.update();
 
-  const data = snapshot.val();
-  if (!data) return;
+        // ── Weekly Summary (7 days) ───────────
+        let wOv=0, wIr=0, wVib=0, wMot=0, wWat=0, wHlth=0, wCount=0;
+        last7.forEach(d => {
+          wOv   += raw[d].overflowCount    || 0;
+          wIr   += raw[d].irCount          || 0;
+          wVib  += raw[d].vibrationCount   || 0;
+          wMot  += raw[d].motorRunTime_sec || 0;
+          wWat  += raw[d].avgWaterLevel    || 0;
+          wHlth += raw[d].avgHealthScore   || 0;
+          wCount++;
+        });
+        document.getElementById("w_overflow").innerText = wOv;
+        document.getElementById("w_ir").innerText       = wIr;
+        document.getElementById("w_vib").innerText      = wVib;
+        document.getElementById("w_motor").innerText    = wMot;
+        document.getElementById("w_water").innerText    = wCount ? (wWat / wCount).toFixed(1) : "--";
+        document.getElementById("w_health").innerText   = wCount ? (wHlth / wCount).toFixed(1) : "--";
 
-  // Update cards
-  floatEl.innerHTML = (data.overflowCount || 0) + " Hits";
-  irEl.innerHTML = (data.irCount || 0) + " Hits";
-  vibEl.innerHTML = (data.vibrationCount || 0) + " Hits";
+        weeklyOverflowChart.data.labels = last7;
+        weeklyOverflowChart.data.datasets[0].data = last7.map(d => raw[d].overflowCount || 0);
+        weeklyOverflowChart.update();
 
-  // Alerts
-  if (data.overflowCount > 0) {
-    floatEl.parentElement.style.backgroundColor = "#ef4444";
-    showToast("Water overflow detected!");
-  } else {
-    floatEl.parentElement.style.backgroundColor = "";
-  }
+        weeklyHealthChart.data.labels = last7;
+        weeklyHealthChart.data.datasets[0].data = last7.map(d => (raw[d].avgHealthScore || 0).toFixed(1));
+        weeklyHealthChart.update();
 
-  if (data.vibrationCount > 5) {
-    vibEl.parentElement.style.backgroundColor = "#f59e0b";
-    showToast("Excessive vibration detected!", "#f59e0b");
-  } else {
-    vibEl.parentElement.style.backgroundColor = "";
-  }
+        // ── Monthly Summary (30 days) ─────────
+        let mOv=0, mIr=0, mVib=0, mMot=0, mWat=0, mHlth=0, mCount=0;
+        last30.forEach(d => {
+          mOv   += raw[d].overflowCount    || 0;
+          mIr   += raw[d].irCount          || 0;
+          mVib  += raw[d].vibrationCount   || 0;
+          mMot  += raw[d].motorRunTime_sec || 0;
+          mWat  += raw[d].avgWaterLevel    || 0;
+          mHlth += raw[d].avgHealthScore   || 0;
+          mCount++;
+        });
+        document.getElementById("m_overflow").innerText = mOv;
+        document.getElementById("m_ir").innerText       = mIr;
+        document.getElementById("m_vib").innerText      = mVib;
+        document.getElementById("m_motor").innerText    = mMot;
+        document.getElementById("m_water").innerText    = mCount ? (mWat / mCount).toFixed(1) : "--";
+        document.getElementById("m_health").innerText   = mCount ? (mHlth / mCount).toFixed(1) : "--";
 
-  if (data.irCount > 0) {
-    irEl.parentElement.style.backgroundColor = "#ef4444";
-    showToast("Object detected by IR sensor!");
-  } else {
-    irEl.parentElement.style.backgroundColor = "";
-  }
+        monthlyChart.data.labels = last30;
+        monthlyChart.data.datasets[0].data = last30.map(d => raw[d].overflowCount || 0);
+        monthlyChart.update();
+      });
+    }
 
-  // Activity chart
-  activityChart.data.labels.push(new Date().toLocaleTimeString());
-  if (activityChart.data.labels.length > 10)
-    activityChart.data.labels.shift();
+    
+    //  ONLINE / OFFLINE CHECK
+    //  If lastSeen > 15s ago → offline
+  
+    function checkOnline(lastSeenEpoch) {
+      const dot   = document.getElementById("onlineDot");
+      const label = document.getElementById("onlineLabel");
+      const now   = Math.floor(Date.now() / 1000);
+      const diff  = now - lastSeenEpoch;
 
-  activityChart.data.datasets[0].data.push(data.overflowCount || 0);
-  activityChart.data.datasets[1].data.push(data.vibrationCount || 0);
-  activityChart.data.datasets[2].data.push(data.irCount || 0);
+      if (diff < 15) {
+        dot.classList.remove("offline");
+        label.innerText = "Online";
+        label.style.color = "#22c55e";
+      } else {
+        dot.classList.add("offline");
+        label.innerText = "Offline (" + diff + "s ago)";
+        label.style.color = "#ef4444";
+      }
+    }
 
-  activityChart.data.datasets.forEach(ds => {
-    if (ds.data.length > 10) ds.data.shift();
-  });
+    
+    //  FAULT PILLS
+  
+    function setFault(id, label, isFault) {
+      const el = document.getElementById(id);
+      el.innerText = (isFault ? "✖ " : "● ") + label + (isFault ? " FAULT" : " OK");
+      if (isFault) {
+        el.classList.add("fault");
+      } else {
+        el.classList.remove("fault");
+      }
+    }
 
-  activityChart.update();
+    
+    //  MAIN FIREBASE LISTENER
+    //  Listen to entire drain node at once
 
-});
+    db.ref("drains/" + drainId).on("value", function(snapshot) {
+      const root = snapshot.val();
+      if (!root) return;
 
-    // MOTOR CONTROL
-    document.getElementById("motorON").addEventListener("click", function () {
-      db.ref("drains/" + drainId + "/commands/motor").set("ON");
+      const live    = root.live    || {};
+      const daily   = root.daily   || {};
+      const faults  = root.faults  || {};
+      const monthly = root.monthly || {};
+      const pred    = root.prediction || {};
+      const events  = root.events  || {};
+
+      // Online check
+      if (live.lastSeen) {
+        checkOnline(live.lastSeen);
+        document.getElementById("lastSeenLabel").innerText = live.lastSeenStr || "";
+      }
+
+      // State + scores
+      const state = live.state || "Normal";
+      const stateClass = state === "Severe" ? "state-severe" : state === "Partial" ? "state-partial" : "state-normal";
+      document.getElementById("stateEl").innerHTML = `<span class="state-badge ${stateClass}">${state}</span>`;
+      document.getElementById("blockageEl").innerHTML = (live.blockageScore || 0) + '<span class="stat-unit">/ 100</span>';
+      document.getElementById("healthEl").innerHTML   = (live.healthScore   || 0) + '<span class="stat-unit">/ 100</span>';
+
+      const h = live.healthScore || 0;
+      const hColor = h > 60 ? "#22c55e" : h > 30 ? "#f59e0b" : "#ef4444";
+      document.getElementById("healthBar").style.width      = h + "%";
+      document.getElementById("healthBar").style.background = hColor;
+
+      const risk = pred.risk || live.predictedRisk || "LOW";
+      const riskColor = risk === "HIGH" ? "#ef4444" : risk === "MEDIUM" ? "#f59e0b" : "#22c55e";
+      document.getElementById("riskEl").innerText       = risk;
+      document.getElementById("riskEl").style.color     = riskColor;
+
+      //  Sensors
+      const water = live.waterLevel;
+      const gas   = live.gasVal;
+      const float_ = live.float;
+      const motor  = live.motorActive;
+
+      document.getElementById("waterEl").innerText = water != null ? water.toFixed(1) + " cm" : "--";
+      document.getElementById("gasEl").innerText   = gas   != null ? gas : "--";
+      document.getElementById("floatEl").innerText = float_ ? "OVERFLOW" : "Clear";
+      document.getElementById("floatEl").style.color = float_ ? "#ef4444" : "#22c55e";
+      document.getElementById("irEl").innerText    = daily.irCount != null ? daily.irCount + " today" : "--";
+      document.getElementById("vibEl").innerText   = daily.vibrationCount != null ? daily.vibrationCount + " today" : "--";
+      document.getElementById("motorStateEl").innerText   = motor ? "ON" : "OFF";
+      document.getElementById("motorStateEl").style.color = motor ? "#22c55e" : "#ef4444";
+
+      // Alerts
+      // Low water = blockage (close to sensor)
+      if (water != null && water < 4) {
+        document.getElementById("boxWater").classList.add("alert-active");
+        showToast("⚠ Low water reading — possible blockage!");
+      } else {
+        document.getElementById("boxWater").classList.remove("alert-active");
+      }
+
+      if (float_) {
+        document.getElementById("boxFloat").classList.add("alert-active");
+        showToast("⚠ Float triggered — overflow detected!", "#f59e0b");
+      } else {
+        document.getElementById("boxFloat").classList.remove("alert-active");
+      }
+
+      if (state === "Severe") {
+        showToast("🚨 SEVERE blockage detected!", "#ef4444");
+      }
+
+      //WiFi 
+      document.getElementById("wifiEl").innerText = (live.wifiStrength || "--") + " (" + (live.rssi || "--") + " dBm)";
+
+      // Daily counters
+      document.getElementById("irCountEl").innerText    = daily.irCount          || 0;
+      document.getElementById("overflowEl").innerText   = daily.overflowCount    || 0;
+      document.getElementById("vibCountEl").innerText   = daily.vibrationCount   || 0;
+      document.getElementById("motorRunEl").innerHTML   = (daily.motorRunTime_sec || 0) + '<span class="stat-unit">s</span>';
+      document.getElementById("monthlyEl").innerText    = monthly.overflowCount  || 0;
+
+      //  Faults
+      setFault("fUltrasonic", "Ultrasonic", faults.ultrasonic);
+      setFault("fVibration",  "Vibration",  faults.vibration);
+      setFault("fIR",         "IR",         faults.ir);
+      setFault("fMQ2",        "MQ2",        faults.mq2);
+      setFault("fFloat",      "Float",      faults.float);
+
+      // Events
+      if (events.latest) {
+        document.getElementById("eventMsg").innerText  = events.latest.message || "";
+        const ts = events.latest.timestamp;
+        document.getElementById("eventTime").innerText = ts ? new Date(ts * 1000).toLocaleString() : "";
+      }
+
+      // Control tab motor status
+      document.getElementById("ctrlMotorState").innerText = motor ? "ON" : "OFF";
+      document.getElementById("ctrlMotorState").style.color = motor ? "#22c55e" : "#ef4444";
+      document.getElementById("ctrlMotorSpeed").innerText = live.motorSpeed != null ? live.motorSpeed : "--";
+      document.getElementById("ctrlMotorDir").innerText   = live.motorDir   || "--";
+      document.getElementById("ctrlOverride").innerText   = "AUTO"; // shown if no manual override
+
+      // Live Charts 
+      pushToChart(waterChart, water);
+      pushToChart(gasChart, gas);
+      pushToChart(scoreChart, live.blockageScore);
+
+      // Activity chart — push all 3 datasets with same timestamp
+      const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      activityChart.data.labels.push(time);
+      if (activityChart.data.labels.length > 20) activityChart.data.labels.shift();
+      [daily.overflowCount || 0, daily.vibrationCount || 0, daily.irCount || 0].forEach((v, i) => {
+        activityChart.data.datasets[i].data.push(v);
+        if (activityChart.data.datasets[i].data.length > 20) activityChart.data.datasets[i].data.shift();
+      });
+      activityChart.update();
     });
-    document.getElementById("motorOFF").addEventListener("click", function () {
-      db.ref("drains/" + drainId + "/commands/motor").set("OFF");
+
+    
+    //  MOTOR CONTROL BUTTONS
+    
+    const cmdRef = db.ref("drains/" + drainId + "/commands");
+
+    document.getElementById("btnON").addEventListener("click", function() {
+      cmdRef.child("motor").set("ON");
+      showToast("Motor ON command sent", "#22c55e");
     });
+    document.getElementById("btnOFF").addEventListener("click", function() {
+      cmdRef.child("motor").set("OFF");
+      showToast("Motor OFF command sent", "#ef4444");
+    });
+    document.getElementById("btnAUTO").addEventListener("click", function() {
+      cmdRef.child("motor").set("AUTO");
+      showToast("Motor set to AUTO", "#3b82f6");
+    });
+
+    // Speed slider
+    const speedSlider = document.getElementById("speedSlider");
+    const speedLabel  = document.getElementById("speedLabel");
+    speedSlider.addEventListener("input", function() {
+      speedLabel.innerText = this.value;
+    });
+    speedSlider.addEventListener("change", function() {
+      cmdRef.child("motorSpeed").set(parseInt(this.value));
+      showToast("Speed set to " + this.value, "#06b6d4");
+    });
+
+    // Direction
+    document.getElementById("btnLEFT").addEventListener("click", function() {
+      cmdRef.child("motorDir").set("LEFT");
+      document.getElementById("btnLEFT").classList.add("active-dir");
+      document.getElementById("btnRIGHT").classList.remove("active-dir");
+      showToast("Direction: LEFT", "#06b6d4");
+    });
+    document.getElementById("btnRIGHT").addEventListener("click", function() {
+      cmdRef.child("motorDir").set("RIGHT");
+      document.getElementById("btnRIGHT").classList.add("active-dir");
+      document.getElementById("btnLEFT").classList.remove("active-dir");
+      showToast("Direction: RIGHT", "#06b6d4");
+    });
+
   </script>
 </body>
-
 </html>
