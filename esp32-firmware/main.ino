@@ -4,8 +4,8 @@
 #include <time.h>
 
 // WiFi
-const char* ssid = "Redmi 14C";
-const char* pwd  = "12345678";
+const char* ssid = "Nphn";
+const char* pwd  = "Twinkle12259";
 
 // Drain identity
 #define DRAIN_ID "DRAIN_001"
@@ -70,13 +70,12 @@ int dailyIRCount = 0;
 int dailyOverflowCount = 0;
 int dailyVibrationCount = 0;
 
-//must i be putting monthly count ? thought we were doing it through dasboard hellllo rmv
+//might rmv 
 int monthlyOverflowCount = 0;
 
 // Fault flags
 bool ultrasonicFault = false;
 bool vibrationFault = false;
-bool irFault = false;
 bool mq2Fault = false;
 bool floatFault = false;
 
@@ -91,10 +90,9 @@ const unsigned long VIB_WINDOW = 1000; //1s debounce
 
 // daily accumulators (for avgs)
 float totalWaterLevel  = 0;
-float totalGas         = 0;
+float totalGas = 0;
 float totalHealthScore = 0;
-int   readingCount     = 0;
-
+int   readingCount = 0;
 
 
 void setup() {
@@ -114,7 +112,7 @@ void setup() {
   fbdo.setResponseSize(2048);
   fbdoCmd.setResponseSize(512);   // small buffer = faster
   Firebase.begin(&config, &auth);
-  // Resume counters from Firebase after power cut
+  // Resume counters from Firebase
   if (Firebase.RTDB.getInt(&fbdo, "/drains/" DRAIN_ID "/daily/irCount"))
     dailyIRCount = fbdo.intData();
   if (Firebase.RTDB.getInt(&fbdo, "/drains/" DRAIN_ID "/daily/overflowCount"))
@@ -123,6 +121,8 @@ void setup() {
     dailyVibrationCount = fbdo.intData();
   if (Firebase.RTDB.getInt(&fbdo, "/drains/" DRAIN_ID "/daily/motorRunTime_sec"))
     motorRunTimeToday = (unsigned long)fbdo.intData() * 1000;
+  if (Firebase.RTDB.getInt(&fbdo, "/drains/" DRAIN_ID "/monthly/overflowCount"))
+    monthlyOverflowCount = fbdo.intData();
   Firebase.setDoubleDigits(4);
   config.timeout.serverResponse = 5 * 1000;
   
@@ -199,8 +199,10 @@ void initPins() {
   ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
   ledcAttachPin(ENA, PWM_CHANNEL);
   ledcWrite(PWM_CHANNEL, 0);
+  //ledcAttach(ENA, PWM_FREQ, PWM_RESOLUTION);
+  //ledcWrite(ENA, 0);
   digitalWrite(IN1, LOW);
-  digitalWrite(IN2, LOW); //removed ENA low so what about IN1 and IN2 lows ???
+  digitalWrite(IN2, LOW);
 }
 
 void initWiFi() {
@@ -225,8 +227,9 @@ void readSensors() {
 
   long duration = pulseIn(ECHO_PIN, HIGH, 15000);
   if (duration > 0)
-    waterLvl = duration * 0.034 / 2;   // hold last reading if timeout
-
+    waterLvl = duration * 0.034 / 2;
+  else
+   waterLvl = 0;
 
   gasVal = analogRead(MQ2_PIN);
 
@@ -239,7 +242,7 @@ void readSensors() {
 
 void trackTrash() {
   int currentIR = digitalRead(IR_PIN);
-  if (currentIR == HIGH && lastIRState == LOW)
+ if (currentIR == LOW && lastIRState == HIGH)
     dailyIRCount++;
   lastIRState = currentIR;
 }
@@ -281,23 +284,7 @@ void trackVibration() {
 
 
 void detectFaults() {
-  ultrasonicFault = (waterLvl <= 0 || waterLvl > 400);
-
-  static int stableIR = 0;
-  static int lastIR = -1;
-  int currentIR = digitalRead(IR_PIN);
-
-  if (currentIR == lastIR) {
-    stableIR++;
-  } else {
-    stableIR = 0;
-  }
-  if (stableIR > 200) {
-    irFault = true;
-  } else {
-    irFault = false;
-  }
-  lastIR = currentIR;
+  ultrasonicFault = (waterLvl <= 0.5 || waterLvl > 400);
 
   // Vibration sensor disconnected (AO reads 0)
   if (analogRead(VIB_AO) <= 0) {
@@ -325,7 +312,7 @@ void computeBlockageScore() {
   blockageScore = 0;
 
   if (waterLvl < 4 ) blockageScore += 40;
-  if (gasVal > 2000) blockageScore += 20;
+  if (gasVal > 3500) blockageScore += 20;
   if (dailyVibrationCount > 15) blockageScore += 10;
   if (digitalRead(FLOAT_PIN) == HIGH) blockageScore += 100;
 
@@ -372,7 +359,7 @@ void controlMotor() {
 }
 
 void predictBlockageRisk() {
-  if (waterLvl < 4 && gasVal > 1800)
+  if (waterLvl < 4 && gasVal > 3800)
     predictedRisk = "HIGH";
   else if (waterLvl <= 6 )
     predictedRisk = "MEDIUM";
@@ -463,40 +450,41 @@ void sendLiveData() {
    // live/
   j.set("live/waterLevel", waterLvl);
   j.set("live/gasVal", gasVal);
-  j.set("live/irDetected", digitalRead(IR_PIN) == HIGH);
+  j.set("live/float", digitalRead(FLOAT_PIN) == HIGH);
+  j.set("live/irDetected", digitalRead(IR_PIN) == LOW);
   j.set("live/vibDetected", vibInWindow);   // true during active 1s debounce window
   j.set("live/blockageScore", blockageScore);
-  j.set("live/healthScore",   healthScore);
-  j.set("live/state",         drainState);
-  j.set("live/motorActive",   motorActive);
-  j.set("live/rssi",          rssi);
-  j.set("live/wifiStrength",  wifiStrength);
+  j.set("live/healthScore",  healthScore);
+  j.set("live/state", drainState);
+  j.set("live/motorActive", motorActive);
+  j.set("live/rssi", rssi);
+  j.set("live/wifiStrength", wifiStrength);
   j.set("live/predictedRisk", predictedRisk);
-  j.set("live/lastSeen",      (int)now);
-  j.set("live/lastSeenStr",   String(timeBuf));
+  j.set("live/lastSeen", (int)now);
+  j.set("live/lastSeenStr", String(timeBuf));
   j.set("live/motorSpeed", motorSpeed);
-  j.set("live/motorDir",   motorDir);
+  j.set("live/motorDir", motorDir);
 
   // faults/
   j.set("faults/ultrasonic", ultrasonicFault);
-  j.set("faults/vibration",  vibrationFault);
-  j.set("faults/ir",         irFault);
-  j.set("faults/mq2",        mq2Fault);
-  j.set("faults/float",      floatFault);
+  j.set("faults/vibration", vibrationFault);
+
+  j.set("faults/mq2", mq2Fault);
+  j.set("faults/float", floatFault);
 
   // daily/
-  j.set("daily/irCount",          dailyIRCount);
-  j.set("daily/overflowCount",    dailyOverflowCount);
-  j.set("daily/vibrationCount",   dailyVibrationCount);
+  j.set("daily/irCount", dailyIRCount);
+  j.set("daily/overflowCount", dailyOverflowCount);
+  j.set("daily/vibrationCount", dailyVibrationCount);
   j.set("daily/motorRunTime_sec", (int)(motorRunTimeToday / 1000));
-  j.set("daily/avgWaterLevel",    avgWaterLevel);
-  j.set("daily/avgGas",           avgGas);
-  j.set("daily/avgHealthScore",   avgHealth);
+  j.set("daily/avgWaterLevel", avgWaterLevel);
+  j.set("daily/avgGas", avgGas);
+  j.set("daily/avgHealthScore", avgHealth);
 
   // prediction/
   j.set("prediction/risk", predictedRisk);
 
-  // monthly/ ?????? NEED IT ?????????
+  // monthly/ ??????
   j.set("monthly/overflowCount", monthlyOverflowCount);
 
   //push fb
@@ -507,7 +495,7 @@ void sendLiveData() {
 }
 void checkMidnightRollup() {
 
-  // Check if day has changed
+  // Check if day has changed (can change / enhance it)
   struct tm t;
   if (!getLocalTime(&t)) {
     return;
@@ -517,34 +505,34 @@ void checkMidnightRollup() {
   }
   lastRollupDay = t.tm_mday;
 
-  // Build yesterday's date string 
+  // Build yesterday date string
   time_t yesterday = mktime(&t) - 86400;
   struct tm* yt = localtime(&yesterday);
   char dateBuf[12];
   strftime(dateBuf, sizeof(dateBuf), "%Y-%m-%d", yt);
 
-  //  Daily averages 
+  // Daily averages
   float avgWaterLevel = 0;
-  float avgGas        = 0;
-  float avgHealth     = 0;
+  float avgGas = 0;
+  float avgHealth = 0;
 
   if (readingCount > 0) {
     avgWaterLevel = totalWaterLevel  / readingCount;
-    avgGas        = totalGas         / readingCount;
-    avgHealth     = totalHealthScore / readingCount;
+    avgGas = totalGas / readingCount;
+    avgHealth = totalHealthScore / readingCount;
   }
 
   //Save snapshot to Firebase
   String histPath = "/drains/" + String(DRAIN_ID) + "/history/" + String(dateBuf);
 
   FirebaseJson snap;
-  snap.set("irCount",          dailyIRCount);
-  snap.set("overflowCount",    dailyOverflowCount);
-  snap.set("vibrationCount",   dailyVibrationCount);
+  snap.set("irCount", dailyIRCount);
+  snap.set("overflowCount", dailyOverflowCount);
+  snap.set("vibrationCount", dailyVibrationCount);
   snap.set("motorRunTime_sec", (int)(motorRunTimeToday / 1000));
-  snap.set("avgWaterLevel",    avgWaterLevel);
-  snap.set("avgGas",           avgGas);
-  snap.set("avgHealthScore",   avgHealth);
+  snap.set("avgWaterLevel", avgWaterLevel);
+  snap.set("avgGas", avgGas);
+  snap.set("avgHealthScore", avgHealth);
 
   if (Firebase.RTDB.updateNode(&fbdo, histPath, &snap)) {
     Serial.printf("History saved: %s\n", dateBuf);
@@ -553,12 +541,12 @@ void checkMidnightRollup() {
   }
 
   //Reset daily accumulators
-  dailyIRCount        = 0;
-  dailyOverflowCount  = 0;
+  dailyIRCount = 0;
+  dailyOverflowCount = 0;
   dailyVibrationCount = 0;
-  motorRunTimeToday   = 0;
-  totalWaterLevel     = 0;
-  totalGas            = 0;
-  totalHealthScore    = 0;
-  readingCount        = 0;
+  motorRunTimeToday = 0;
+  totalWaterLevel = 0;
+  totalGas = 0;
+  totalHealthScore = 0;
+  readingCount = 0;
 }
