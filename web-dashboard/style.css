@@ -27,6 +27,7 @@
 }
 
 
+
     /* ── NAV ────────────────────────────────── */
     .topbar {
       background: var(--surface);
@@ -88,46 +89,6 @@
     .tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); }
     .tab-content { display: none; padding: 24px; }
     .tab-content.active { display: block; }
-
-    /* ── DRAIN IDENTITY CARD (PROFESSIONAL) ── */
-.drain-id-card {
-    background: var(--surface);
-    border-radius: 8px;
-    padding: 16px 20px;
-    border: 1px solid var(--border);
-    border-left: 4px solid var(--teal); /* Status indicator color */
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-
-.id-info h2 {
-    font-family: var(--font-mono);
-    font-size: 24px;
-    color: var(--text);
-    margin: 0;
-    letter-spacing: 1px;
-}
-
-.id-info p {
-    font-size: 12px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-top: 4px;
-}
-
-.status-chip {
-    background: rgba(6, 182, 212, 0.1);
-    color: var(--teal);
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    border: 1px solid rgba(6, 182, 212, 0.2);
-}
 
     /* ── SECTION TITLE ──────────────────────── */
     .section-title {
@@ -351,7 +312,7 @@
     }
     .hist-table tr:hover td { background: var(--surface2); }
 
-    /* EVENTS */
+    /* ── EVENTS ─────────────────────────────── */
     .event-item {
       background: rgba(239,68,68,0.08);
       border: 1px solid rgba(239,68,68,0.3);
@@ -361,7 +322,7 @@
     }
     .event-time { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
 
-    /*  TOAST  */
+    /* ── TOAST ──────────────────────────────── */
     #toast {
       position: fixed;
       top: 20px;
@@ -378,14 +339,14 @@
       max-width: 320px;
     }
 
-    /* LAST SEEN */
+    /* ── LAST SEEN ──────────────────────────── */
     .last-seen {
       font-size: 12px;
       color: var(--muted);
       font-family: var(--font-mono);
     }
 
-    /*  WEEKLY/MONTHLY SUMMARY */
+    /* ── WEEKLY/MONTHLY SUMMARY ─────────────── */
     .summary-val {
       font-family: var(--font-mono);
       font-size: 22px;
@@ -405,9 +366,59 @@
       text-align: center;
     }
 
-    /*  RESPONSIVE  */
+    /* ── RESPONSIVE ─────────────────────────── */
     @media(max-width:576px) {
       .tab-btn { padding: 8px 12px; font-size: 12px; }
       .stat-value { font-size: 22px; }
     }
   
+.override-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  transition: all 0.3s;
+}
+.override-badge.mode-auto {
+  background: rgba(59,130,246,0.15);
+  color: var(--blue);
+  border: 1px solid rgba(59,130,246,0.4);
+}
+.override-badge.mode-manual {
+  background: rgba(245,158,11,0.15);
+  color: var(--yellow);
+  border: 1px solid rgba(245,158,11,0.5);
+  animation: modeblink 1.5s infinite;
+}
+@keyframes modeblink { 0%,100%{opacity:1} 50%{opacity:0.6} }
+.toggle-switch {
+  position: relative;
+  width: 52px;
+  height: 26px;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--blue);
+  border-radius: 26px;
+  transition: 0.3s;
+}
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px; width: 20px;
+  left: 3px; bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+input:checked + .toggle-slider { background: var(--yellow); }
+input:checked + .toggle-slider:before { transform: translateX(26px); }
+.btn-ctrl:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
