@@ -35,18 +35,7 @@
     <button class="tab-btn" onclick="switchTab('analytics', this)">Analytics</button>
   </div>
 
-  <!-- 
-       TAB 1 — LIVE-->
-  <div class="drain-id-card">
-    <div class="id-info">
-        <p>Asset Identifier</p>
-        <h2>DRAIN-001</h2>
-    </div>
-    <div class="status-chip">
-        System Active
-    </div>
-</div>
-
+  <!-- live tab -->
   <div class="tab-content active" id="tab-live">
 
     <!-- State + Score row -->
@@ -168,7 +157,6 @@
     <div class="fault-row" id="faultRow">
       <div class="fault-pill" id="fUltrasonic">● Ultrasonic OK</div>
       <div class="fault-pill" id="fVibration">● Vibration OK</div>
-      <div class="fault-pill" id="fIR">● IR OK</div>
       <div class="fault-pill" id="fMQ2">● MQ2 OK</div>
       <div class="fault-pill" id="fFloat">● Float OK</div>
     </div>
@@ -182,9 +170,7 @@
 
   </div>
 
-  <!--
-       TAB 2 — CONTROL
-  -->
+  <!-- CONTROL -->
   <div class="tab-content" id="tab-control">
 
     <div class="control-panel">
@@ -209,11 +195,18 @@
       </div>
 
       <!-- ON / OFF / AUTO -->
-      <div class="ctrl-label">Motor Command</div>
+      <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+        <div class="override-badge mode-auto" id="overrideBadge">⚙ AUTO</div>
+        <label class="toggle-switch" style="margin-left:auto">
+          <input type="checkbox" id="modeToggle">
+          <span class="toggle-slider"></span>
+        </label>
+        <span style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--muted)" id="modeToggleLabel">MANUAL</span>
+      </div>
+      <div class="ctrl-label">Motor Command <span id="manualOnlyNote" style="color:var(--muted);font-size:10px;letter-spacing:0;text-transform:none;font-weight:400">(switch to Manual to control)</span></div>
       <div class="d-flex gap-3 flex-wrap mb-4">
-        <button class="btn-ctrl btn-on"   id="btnON">ON</button>
-        <button class="btn-ctrl btn-off"  id="btnOFF">OFF</button>
-        <button class="btn-ctrl btn-auto" id="btnAUTO">AUTO</button>
+        <button class="btn-ctrl btn-on"  id="btnON"  disabled>ON</button>
+        <button class="btn-ctrl btn-off" id="btnOFF" disabled>OFF</button>
       </div>
 
       <!-- Speed -->
@@ -230,9 +223,7 @@
 
   </div>
 
-  <!-- 
-       TAB 3 — CHARTS (LIVE)
- -->
+  <!-- live CHARTS -->
   <div class="tab-content" id="tab-charts">
     <div class="row g-4">
       <div class="col-lg-6">
@@ -262,19 +253,16 @@
     </div>
   </div>
 
-  <!-- 
-       TAB 4 — HISTORY (dated snapshots)
-  -->
   <div class="tab-content" id="tab-history">
     <div class="section-title">Daily History Snapshots</div>
     <div class="chart-box mb-4">
-      <h5>Avg Water Level — Last 14 Days</h5>
-      <canvas id="histWaterChart"></canvas>
-    </div>
-    <div class="chart-box mb-4">
-      <h5>Daily Overflow Count — Last 14 Days</h5>
-      <canvas id="histOverflowChart"></canvas>
-    </div>
+  <h5>Daily Events — Overflow / IR / Vibration (Last 14 Days)</h5>
+  <canvas id="histEventsChart"></canvas>
+</div>
+<div class="chart-box mb-4">
+  <h5>Motor Run Time per Day — seconds (Last 14 Days)</h5>
+  <canvas id="histMotorChart"></canvas>
+</div>
     <div class="chart-box mb-4">
       <table class="hist-table" id="histTable">
         <thead>
@@ -296,9 +284,7 @@
     </div>
   </div>
 
-  <!--
-       TAB 5 — ANALYTICS (weekly / monthly)
-  -->
+  <!-- TAB 5 — ANALYTICS (weekly / monthly) -->
   <div class="tab-content" id="tab-analytics">
 
     <div class="section-title">Weekly Summary (Last 7 Days)</div>
@@ -348,7 +334,7 @@
   <div id="toast"></div>
 
   <script>
-  
+   
     //  FIREBASE INIT
     
     var firebaseConfig = {
@@ -360,9 +346,8 @@
     var db = firebase.database();
     const drainId = "DRAIN_001";
 
-
     //  TAB SWITCHING
-    
+
     function switchTab(name, btn) {
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -373,9 +358,7 @@
       if (name === 'history' || name === 'analytics') loadHistory();
     }
 
-    
     //  TOAST
-  
     const toast = document.getElementById("toast");
     let toastTimer = null;
     function showToast(msg, color) {
@@ -386,9 +369,7 @@
       toastTimer = setTimeout(() => { toast.style.display = "none"; }, 3000);
     }
 
-  
     //  LIVE CHARTS (rolling 20 points)
-  
     function makeChart(id, label, color) {
       return new Chart(document.getElementById(id).getContext("2d"), {
         type: 'line',
@@ -442,9 +423,7 @@
       chart.update();
     }
 
-
     //  HISTORY CHARTS
-  
     function makeBarChart(id, label, color) {
       return new Chart(document.getElementById(id).getContext("2d"), {
         type: 'bar',
@@ -460,16 +439,29 @@
       });
     }
 
-    var histWaterChart    = makeBarChart("histWaterChart",    "Avg Water Level",  "#3b82f6");
-    var histOverflowChart = makeBarChart("histOverflowChart", "Overflow Count",   "#f59e0b");
-
+    var histEventsChart = new Chart(document.getElementById("histEventsChart").getContext("2d"), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Overflow',   data: [], backgroundColor: '#f59e0b99', borderColor: '#f59e0b', borderWidth: 1 },
+          { label: 'IR Events',  data: [], backgroundColor: '#ef444499', borderColor: '#ef4444', borderWidth: 1 },
+          { label: 'Vibrations', data: [], backgroundColor: '#06b6d499', borderColor: '#06b6d4', borderWidth: 1 }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#94a3b8' } } },
+        scales: {
+          x: { ticks: { color: '#475569' }, grid: { color: '#1e293b' } },
+          y: { beginAtZero: true, ticks: { color: '#475569' }, grid: { color: '#263348' } }
+        }
+      }
+    });
+    var histMotorChart = makeBarChart("histMotorChart", "Motor Run Time (s)", "#22c55e");
     var weeklyOverflowChart = makeBarChart("weeklyOverflowChart", "Overflow / Day",    "#f59e0b");
     var weeklyHealthChart   = makeBarChart("weeklyHealthChart",   "Avg Health Score",  "#22c55e");
     var monthlyChart        = makeBarChart("monthlyChart",        "Daily Overflow",    "#3b82f6");
-
-    
-    //  LOAD HISTORY from Firebase
-    //  Reads /drains/DRAIN_001/history/ — sorted by date key
 
     function loadHistory() {
       db.ref("drains/" + drainId + "/history").orderByKey().limitToLast(30).once("value", function(snap) {
@@ -477,12 +469,12 @@
         if (!raw) return;
 
         // Sort dates ascending
-        const dates = Object.keys(raw).sort();
+        const dates = Object.keys(raw).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k)).sort();
         const last14 = dates.slice(-14);
         const last7  = dates.slice(-7);
         const last30 = dates;
 
-        // History Table
+        // ── History Table ─────────────────────
         const tbody = document.getElementById("histBody");
         tbody.innerHTML = "";
         [...dates].reverse().forEach(date => {
@@ -501,14 +493,19 @@
           tbody.appendChild(tr);
         });
 
-        // History Charts (14 days) 
-        histWaterChart.data.labels    = last14;
-        histWaterChart.data.datasets[0].data = last14.map(d => (raw[d].avgWaterLevel || 0).toFixed(2));
-        histWaterChart.update();
+        // ── History Charts (14 days) ──────────
+        histEventsChart.data.labels = last14;
+        histEventsChart.data.datasets[0].data = last14.map(d => raw[d].overflowCount  || 0);
+        histEventsChart.data.datasets[1].data = last14.map(d => raw[d].irCount        || 0);
+        histEventsChart.data.datasets[2].data = last14.map(d => raw[d].vibrationCount || 0);
+        histEventsChart.update();
 
-        histOverflowChart.data.labels = last14;
-        histOverflowChart.data.datasets[0].data = last14.map(d => raw[d].overflowCount || 0);
-        histOverflowChart.update();
+        histMotorChart.data.labels = last14;
+        histMotorChart.data.datasets[0].data = last14.map(d => {
+          const v = raw[d].motorRunTime_sec || 0;
+          return v > 10000 ? Math.round(v / 1000) : v;  // auto-correct if stored as ms
+        });
+        histMotorChart.update();
 
         // ── Weekly Summary (7 days) ───────────
         let wOv=0, wIr=0, wVib=0, wMot=0, wWat=0, wHlth=0, wCount=0;
@@ -560,10 +557,6 @@
       });
     }
 
-    
-    //  ONLINE / OFFLINE CHECK
-    //  If lastSeen > 15s ago → offline
-  
     function checkOnline(lastSeenEpoch) {
       const dot   = document.getElementById("onlineDot");
       const label = document.getElementById("onlineLabel");
@@ -581,9 +574,6 @@
       }
     }
 
-    
-    //  FAULT PILLS
-  
     function setFault(id, label, isFault) {
       const el = document.getElementById(id);
       el.innerText = (isFault ? "✖ " : "● ") + label + (isFault ? " FAULT" : " OK");
@@ -593,10 +583,6 @@
         el.classList.remove("fault");
       }
     }
-
-    
-    //  MAIN FIREBASE LISTENER
-    //  Listen to entire drain node at once
 
     db.ref("drains/" + drainId).on("value", function(snapshot) {
       const root = snapshot.val();
@@ -609,13 +595,13 @@
       const pred    = root.prediction || {};
       const events  = root.events  || {};
 
-      // Online check
+      // ── Online check ────────────────────────
       if (live.lastSeen) {
         checkOnline(live.lastSeen);
         document.getElementById("lastSeenLabel").innerText = live.lastSeenStr || "";
       }
 
-      // State + scores
+      // ── State + scores ───────────────────────
       const state = live.state || "Normal";
       const stateClass = state === "Severe" ? "state-severe" : state === "Partial" ? "state-partial" : "state-normal";
       document.getElementById("stateEl").innerHTML = `<span class="state-badge ${stateClass}">${state}</span>`;
@@ -632,7 +618,7 @@
       document.getElementById("riskEl").innerText       = risk;
       document.getElementById("riskEl").style.color     = riskColor;
 
-      //  Sensors
+      // ── Sensors ─────────────────────────────
       const water = live.waterLevel;
       const gas   = live.gasVal;
       const float_ = live.float;
@@ -647,7 +633,7 @@
       document.getElementById("motorStateEl").innerText   = motor ? "ON" : "OFF";
       document.getElementById("motorStateEl").style.color = motor ? "#22c55e" : "#ef4444";
 
-      // Alerts
+      // ── Alerts ──────────────────────────────
       // Low water = blockage (close to sensor)
       if (water != null && water < 4) {
         document.getElementById("boxWater").classList.add("alert-active");
@@ -667,38 +653,37 @@
         showToast("🚨 SEVERE blockage detected!", "#ef4444");
       }
 
-      //WiFi 
+      // ── WiFi ─────────────────────────────────
       document.getElementById("wifiEl").innerText = (live.wifiStrength || "--") + " (" + (live.rssi || "--") + " dBm)";
 
-      // Daily counters
+      // ── Daily counters ───────────────────────
       document.getElementById("irCountEl").innerText    = daily.irCount          || 0;
       document.getElementById("overflowEl").innerText   = daily.overflowCount    || 0;
       document.getElementById("vibCountEl").innerText   = daily.vibrationCount   || 0;
       document.getElementById("motorRunEl").innerHTML   = (daily.motorRunTime_sec || 0) + '<span class="stat-unit">s</span>';
       document.getElementById("monthlyEl").innerText    = monthly.overflowCount  || 0;
 
-      //  Faults
+      // ── Faults ───────────────────────────────
       setFault("fUltrasonic", "Ultrasonic", faults.ultrasonic);
       setFault("fVibration",  "Vibration",  faults.vibration);
-      setFault("fIR",         "IR",         faults.ir);
       setFault("fMQ2",        "MQ2",        faults.mq2);
       setFault("fFloat",      "Float",      faults.float);
 
-      // Events
+      // ── Events ───────────────────────────────
       if (events.latest) {
         document.getElementById("eventMsg").innerText  = events.latest.message || "";
         const ts = events.latest.timestamp;
         document.getElementById("eventTime").innerText = ts ? new Date(ts * 1000).toLocaleString() : "";
       }
 
-      // Control tab motor status
+      // ── Control tab motor status ─────────────
       document.getElementById("ctrlMotorState").innerText = motor ? "ON" : "OFF";
       document.getElementById("ctrlMotorState").style.color = motor ? "#22c55e" : "#ef4444";
       document.getElementById("ctrlMotorSpeed").innerText = live.motorSpeed != null ? live.motorSpeed : "--";
       document.getElementById("ctrlMotorDir").innerText   = live.motorDir   || "--";
       document.getElementById("ctrlOverride").innerText   = "AUTO"; // shown if no manual override
 
-      // Live Charts 
+      // ── Live Charts ──────────────────────────
       pushToChart(waterChart, water);
       pushToChart(gasChart, gas);
       pushToChart(scoreChart, live.blockageScore);
@@ -714,23 +699,31 @@
       activityChart.update();
     });
 
-    
+    // ══════════════════════════════════════════
     //  MOTOR CONTROL BUTTONS
-    
+    // ══════════════════════════════════════════
     const cmdRef = db.ref("drains/" + drainId + "/commands");
+const modeToggle = document.getElementById("modeToggle");
+const overrideBadge = document.getElementById("overrideBadge");
 
-    document.getElementById("btnON").addEventListener("click", function() {
-      cmdRef.child("motor").set("ON");
-      showToast("Motor ON command sent", "#22c55e");
-    });
-    document.getElementById("btnOFF").addEventListener("click", function() {
-      cmdRef.child("motor").set("OFF");
-      showToast("Motor OFF command sent", "#ef4444");
-    });
-    document.getElementById("btnAUTO").addEventListener("click", function() {
-      cmdRef.child("motor").set("AUTO");
-      showToast("Motor set to AUTO", "#3b82f6");
-    });
+modeToggle.addEventListener("change", function() {
+  const isManual = this.checked;
+  if (isManual) {
+    overrideBadge.className = "override-badge mode-manual";
+    overrideBadge.innerText = "⚠ MANUAL";
+    document.getElementById("btnON").disabled  = false;
+    document.getElementById("btnOFF").disabled = false;
+    document.getElementById("manualOnlyNote").style.display = "none";
+  } else {
+    overrideBadge.className = "override-badge mode-auto";
+    overrideBadge.innerText = "⚙ AUTO";
+    document.getElementById("btnON").disabled  = true;
+    document.getElementById("btnOFF").disabled = true;
+    document.getElementById("manualOnlyNote").style.display = "inline";
+    cmdRef.child("motor").set("AUTO");
+    showToast("Motor set to AUTO", "#3b82f6");
+  }
+});
 
     // Speed slider
     const speedSlider = document.getElementById("speedSlider");
